@@ -390,133 +390,39 @@ def screen_stocks(
             if df.empty or len(df) < 60:
                 continue
 
+            # === Stage 1: 株価データだけで高速フィルタ ===
+            info = {}  # Stage 1ではAPI呼び出ししない。空dictで参照エラー防止
+
             supply = calc_supply_score(df)
-            if supply.get("total", 0) < min_score:
-                continue
-
             phase = detect_phase(df)
-
-            # Phase E（売り抜け後）は除外
-            if phase.get("phase") == "E":
-                continue
-
-            # 銘柄情報取得（時価総額・浮動株）
-            info = {}
-            try:
-                info = get_stock_info(code)
-            except Exception:
-                pass
-
-            # 純粋仕手チェック → 除外
-            manip_check = is_pure_manipulation(df, info)
-            if manip_check["is_pure"]:
-                continue
-
-            # 下値の床を算出
-            floor = calc_downside_floor(df, info)
-
-            trade = calc_entry_exit(df, supply, phase, info)
+            trade = calc_entry_exit(df, supply, phase)
             price_levels = find_price_targets(df)
 
-            # 非対称リターンスコア
-            asymmetry = calc_asymmetry_score(
-                trade["reward_pct"],
-                floor.get("max_downside_pct", trade["risk_pct"]),
-            )
-
-            trade["floor"] = floor
-            trade["safety"] = manip_check
-            trade["asymmetry"] = asymmetry
-
-            # 信用残 + しこりチェック
-            margin_data = {}
-            try:
-                margin_data = fetch_margin_data(code)
-            except Exception:
-                pass
-
-            ceiling = calc_ceiling_score(df, margin_data)
-            trade["ceiling"] = ceiling
-            trade["margin"] = margin_data
-
-            # 真空地帯検出（先行テクニカル）
-            vacuum = detect_volume_vacuum(df)
-            trade["vacuum"] = vacuum
-
-            # ステージ変化検出
-            stage = {}
-            try:
-                stage = detect_financial_stage_change(code)
-            except Exception:
-                pass
-            trade["stage_summary"] = format_stage_summary(stage)
-            trade["stage_score"] = stage.get("stage_score", 0)
-            trade["stage_risks"] = stage.get("risks", [])
-
-            # ステージ変化がある銘柄はフィルタを緩和
-            has_stage_change = stage.get("stage_score", 0) >= 20
-
-            # === 厳選フィルタ（バックテスト実績ベース）===
-            # 勝ちパターン: <1000円, 底値25%以下, ボラ2.5倍以上 → 勝率61%, avg+36.7%
-
+            current = float(df["Close"].iloc[-1])
             historical_range = price_levels["historical_high"] / max(price_levels["historical_low"], 1)
             price_position = supply.get("price_position", 50)
 
-            # ボラ2倍未満は除外（動かない銘柄は投資に向かない）
-            if historical_range < 2:
-                continue
-
-            # 「既に動き始めた銘柄」を除外（損切り率が高い原因）
-            if supply.get("volume_anomaly", 0) > 2 and price_position > 30:
-                continue
-
-            # 一過性リスク除外: 仕込み量が少なく1週間以内に売り抜けられる場合は見送り
-            # （注文設定が間に合わない可能性）
-            try:
-                from src.analysis.whale_plan import estimate_accumulation
-                _accum = estimate_accumulation(df)
-                _accum_shares = _accum.get("accumulated_shares", 0)
-                _avg_vol = info.get("average_volume", 0) if info else 0
-                if _accum_shares > 0 and _avg_vol > 0:
-                    _unwind = _accum_shares / (_avg_vol * 0.15)
-                    if _unwind < 7:
-                        continue  # 一過性リスク
-            except Exception:
-                pass
-
-            # 損切りは-20%（バックテスト最適値）
+            # 損切り-20%
             trade["stop_loss"] = round(trade["entry"] * 0.80)
             trade["risk_pct"] = 20
             trade["risk_reward"] = trade["reward_pct"] / 20 if trade["reward_pct"] > 0 else 0
 
-            # 手数料・税金考慮（往復0.5%+税金20%を考慮すると、最低+5%は必要）
+            # 最低条件（バックテスト実証済みの基本フィルタのみ）
+            if historical_range < 2:
+                continue  # ボラなし除外
             if trade["reward_pct"] < 10:
-                continue  # 手数料負けする可能性
+                continue  # 手数料負け
+            if trade["risk_reward"] < 1.5:
+                continue  # RR不足
 
-            # 勝ちパターンに合致するかで優先度を変える
+            # 勝ちパターンフラグ
             is_best_pattern = (current < 1000 and price_position < 25 and historical_range >= 2.5)
             is_good_pattern = (price_position < 30 and historical_range >= 2.5)
 
-            if not is_best_pattern and not is_good_pattern:
-                # 最低限: ステージ変化あり or 十分なリターン
-                if not has_stage_change and trade["reward_pct"] < 50:
-                    continue
+            floor = calc_downside_floor(df, {})
+            asymmetry = calc_asymmetry_score(trade["reward_pct"], floor.get("max_downside_pct", 20))
 
-            if trade["risk_reward"] < 1.5:
-                continue
-            if manip_check["safety_score"] < 40:
-                continue
-            if ceiling["ceiling_score"] > 70:
-                continue
-            if trade["timing"] == "WAIT" and supply.get("total", 0) < 50 and not is_best_pattern:
-                continue
-
-            reason = build_reason(supply, phase, trade, info)
-            current = float(df["Close"].iloc[-1])
-
-            # 浮動株枯渇度
-            avg_vol = info.get("average_volume", 0)
-            scarcity = calc_float_scarcity(info, avg_vol)
+            reason = build_reason(supply, phase, trade, {})
 
             results.append({
                 "code": code,
@@ -527,8 +433,8 @@ def screen_stocks(
                 "historical_range": round(historical_range, 1),
                 "ret_3d": round((current - float(df["Close"].iloc[-4])) / float(df["Close"].iloc[-4]) * 100, 1) if len(df) >= 4 else 0,
                 "supply_score": supply.get("total", 0),
-                "float_scarcity": scarcity,
-                "market_cap": info.get("market_cap", 0),
+                "float_scarcity": 0,  # Stage 2で更新
+                "market_cap": 0,  # Stage 2で更新
                 "phase": phase.get("phase", "NONE"),
                 "phase_confidence": phase.get("confidence", 0),
                 "phase_desc": phase.get("description", ""),
@@ -544,27 +450,27 @@ def screen_stocks(
                 "is_bottom": supply.get("is_bottom", False),
                 "volume_anomaly": supply.get("volume_anomaly", 0),
                 "squeeze": supply.get("squeeze", 0),
-                "safety_score": manip_check["safety_score"],
+                "safety_score": 50,  # Stage 2で更新
                 "floor_price": floor.get("floor_price", 0),
                 "max_downside_pct": floor.get("max_downside_pct", 0),
                 "asymmetry": asymmetry,
-                "risk_factors": manip_check.get("risk_factors", []),
-                "ceiling_score": ceiling.get("ceiling_score", 0),
-                "margin_ratio": margin_data.get("margin_ratio", 0),
-                "overhead_pct": ceiling.get("overhead_supply", {}).get("total_overhead_pct", 0),
-                "margin_buy_change": margin_data.get("margin_buy_change", 0),
+                "risk_factors": [],
+                "ceiling_score": 50,
+                "margin_ratio": 0,
+                "overhead_pct": 0,
+                "margin_buy_change": 0,
                 "price_position": supply.get("price_position", 50),
                 "divergence": supply.get("divergence", 0),
                 "accumulation": supply.get("accumulation", 0),
-                "ml_win_prob": predict_win_probability(supply),
-                "has_vacuum": vacuum.get("has_vacuum", False),
-                "vacuum_desc": vacuum.get("description", ""),
-                "stage_score": stage.get("stage_score", 0),
-                "stage_changes": stage.get("changes", []),
-                "stage_risks": stage.get("risks", []),
-                "market_gap": stage.get("market_gap", "none"),
-                "dilution_risk_count": len([r for r in stage.get("risks", []) if r.get("type") in ("high_float", "cash_burn")]),
-                "stage_summary": format_stage_summary(stage),
+                "ml_win_prob": None,  # Stage 2で更新
+                "has_vacuum": False,
+                "vacuum_desc": "",
+                "stage_score": 0,
+                "stage_changes": [],
+                "stage_risks": [],
+                "market_gap": "none",
+                "dilution_risk_count": 0,
+                "stage_summary": "",
             })
 
             # イベント接近検出
@@ -613,7 +519,7 @@ def screen_stocks(
                     current_price=current,
                     historical_high=price_levels["historical_high"],
                     prev_highs=price_levels.get("prev_highs", []),
-                    stage_score=stage.get("stage_score", 0),
+                    stage_score=0,  # Stage 2で更新
                 )
                 results[-1]["staged_targets"] = staged
 
@@ -622,37 +528,26 @@ def screen_stocks(
             results[-1]["conviction_grade"] = results[-1]["conviction"]["grade"]
             results[-1]["conviction_count"] = results[-1]["conviction"]["conviction_count"]
 
-        except Exception:
+        except Exception as _e:
+            import logging, traceback
+            tb = traceback.format_exc()
+            logging.warning(f"screener: {code} failed: {tb}")
+            if len([r for r in results if r.get("error")]) < 3:
+                results.append({"code": code, "name": f"Error: {type(_e).__name__}: {_e}", "current_price": 0, "error": True, "traceback": tb})
             continue
 
-    # ソート: 確度スコア（重み付き）が最優先、次に直近シグナル
+    # エラー銘柄を分離
+    errors = [r for r in results if r.get("error")]
+    valid = [r for r in results if not r.get("error")]
+
+    # ソート
     timing_bonus = {"NOW": 3, "NEAR": 2, "WAIT": 1}
-    urgency_bonus = {"immediate": 3, "soon": 2, "watching": 1}
-    results.sort(
+    valid.sort(
         key=lambda x: (
-            x.get("conviction", {}).get("conviction_score", 0) * 100  # 確度スコア最優先
-            + x.get("timing_score", 0) * 10  # 直近で動くシグナル
-            + timing_bonus.get(x["timing"], 1) * 50  # エントリー圏内
-            + urgency_bonus.get(x.get("urgency", "watching"), 1) * 30
+            x.get("reward_pct", 0) * 10
+            + timing_bonus.get(x.get("timing", "WAIT"), 1) * 50
         ),
         reverse=True,
     )
 
-    # 確度B以上を全て返す
-    filtered = [r for r in results if r.get("conviction_grade") in ("S", "A", "B")]
-
-    # フィルタ後の銘柄のみバックテスト実行（速度改善）
-    for r in filtered:
-        try:
-            df = fetch_price(r["code"], period_days=1095)
-            if not df.empty:
-                bt_results = backtest_stock(r["code"], period_days=1095)
-                if bt_results:
-                    bt_patterns = find_winning_patterns(bt_results)
-                    bt_realistic = estimate_realistic_target(bt_results)
-                    bt_patterns["realistic"] = bt_realistic
-                    r["backtest"] = bt_patterns
-        except Exception:
-            pass
-
-    return filtered
+    return valid + errors

@@ -344,20 +344,5 @@ def run_deep_analysis(candidates: list[dict], progress_callback=None) -> list[di
 
     results.sort(key=sort_key, reverse=True)
 
-    # 確度フィルタ:
-    # - 確度50%以上（conviction_score >= 50）が最低ライン
-    # - かつリターンがリスクより明らかに大きい（RR >= 2）
-    # - 確度が低くてもリターンが極端に大きければ許容（RR >= 5 なら確度40%から）
-    filtered = []
-    for r in results:
-        conv = r.get("conviction", {}) if isinstance(r.get("conviction"), dict) else {}
-        score = conv.get("conviction_score", 0)
-        rr = r.get("risk_reward", 0)
-
-        if score >= 50 and rr >= 2:
-            filtered.append(r)  # 標準合格
-        elif score >= 40 and rr >= 5:
-            filtered.append(r)  # 確度やや低いがリターンが圧倒的
-        # それ以外は除外
-
-    return filtered
+    # 全件返す（確度はUIで表示。フィルタで落とさない）
+    return results

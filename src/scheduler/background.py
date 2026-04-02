@@ -28,13 +28,9 @@ def get_scan_status() -> dict:
     return dict(_scan_status)
 
 
-def _run_scan():
+def _run_scan(scan_mode: str = "おまかせ", sector: str = "", custom_codes: list = None):
     """フルスキャン（Stage 1 + Stage 2）をバックグラウンドで実行。"""
     global _scan_status
-
-    today = date.today()
-    if _scan_status["last_run"] == today.isoformat():
-        return  # 今日はもう実行済み
 
     _scan_status["running"] = True
     _scan_status["progress"] = "開始中..."
@@ -44,7 +40,7 @@ def _run_scan():
         from src.data.database import init_db
         init_db()
 
-        from src.data.stocklist import get_growth_stocks
+        from src.data.stocklist import get_growth_stocks, fetch_stocklist, get_stocks_by_sector
         from src.strategy.screener import screen_stocks
         from src.strategy.deep_analysis import run_deep_analysis
         from src.strategy.cache import save_screen_results
@@ -54,9 +50,20 @@ def _run_scan():
 
         # Stage 1
         _scan_status["progress"] = "銘柄リスト取得中..."
-        stocks = get_growth_stocks()
-        codes = stocks["code"].tolist()
+        if custom_codes:
+            import pandas as pd
+            stocks = pd.DataFrame({"code": custom_codes, "name": "", "market": "", "sector": ""})
+        elif scan_mode == "全市場":
+            stocks = fetch_stocklist()
+        elif scan_mode == "業種指定" and sector:
+            stocks = get_stocks_by_sector(sector)
+        else:
+            stocks = get_growth_stocks()
+
+        all_codes = stocks["code"].tolist()
         name_map = dict(zip(stocks["code"].astype(str), stocks["name"]))
+        # 上限200銘柄（速度と網羅性のバランス）
+        codes = all_codes[:200]
         total = len(codes)
         logging.info(f"Scanning {total} stocks")
 
@@ -81,7 +88,7 @@ def _run_scan():
             logging.info(f"Stage 2: {len(results)} results")
 
             # キャッシュ保存
-            save_screen_results("おまかせ", results)
+            save_screen_results(scan_mode, results)
 
             # ウォッチリスト更新
             update_from_screening(results)

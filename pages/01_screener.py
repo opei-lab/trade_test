@@ -33,21 +33,17 @@ warn_c = COLORS["caution"]
 # --- サイドバー ---
 with st.sidebar:
     st.markdown("---")
-    with st.expander("詳細設定", expanded=False):
-        scan_mode = st.radio("スキャン対象", ["おまかせ", "全市場", "業種指定", "銘柄指定"])
+    with st.expander("スキャン対象", expanded=False):
+        scan_mode = st.radio("対象", ["グロース市場", "全市場", "業種指定", "銘柄指定"], label_visibility="collapsed")
         if scan_mode == "業種指定":
             sector = st.selectbox("業種", ["医薬品", "情報・通信業", "電気機器", "機械", "化学", "サービス業", "小売業"])
         elif scan_mode == "銘柄指定":
             codes_input = st.text_area("銘柄コード", value="4572\n3133\n6526", height=80)
-        max_price = st.number_input("株価上限（円）", value=1000, min_value=100, step=100)
-        capital = st.number_input("投資資金（万円）", value=100, min_value=10, step=10)
 
     run = st.button("🔍 スキャン実行", type="primary", use_container_width=True)
 
-# --- バックグラウンドスキャン状態 ---
+# スキャン状態
 scan_status = get_scan_status()
-if scan_status["running"]:
-    st.info(f"スキャン中: {scan_status['progress']}")
 
 
 # ============================
@@ -71,35 +67,12 @@ if active:
         if target_date:
             exit_info += f"（{target_date[:10]}）"
 
-        st.markdown(f"""
-        <div class="stock-card" style="border-left-color:{buy_c if w['status'] == 'action' else warn_c if w['status'] == 'attention' else sec_c}">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px">
-                <div>
-                    <span style="font-size:1.2em;font-weight:700">{status_icon} {w['name']}</span>
-                    <span style="color:{sec_c};margin-left:4px">{w['code']}</span>
-                    <span class="badge" style="background:#2A2F3E;color:{sec_c};margin-left:6px">{status_label}</span>
-                </div>
-                <div style="display:flex;gap:16px;font-size:0.9em">
-                    <div style="text-align:center">
-                        <div style="color:{sec_c};font-size:0.7em">現在値</div>
-                        <div style="font-weight:600">¥{w['latest_price']:,.0f}</div>
-                    </div>
-                    <div style="text-align:center">
-                        <div style="color:{buy_c};font-size:0.7em">売り目標</div>
-                        <div style="font-weight:600;color:{buy_c}">¥{w['target']:,}</div>
-                    </div>
-                    <div style="text-align:center">
-                        <div style="color:{sell_c};font-size:0.7em">損切り</div>
-                        <div style="font-weight:600;color:{sell_c}">¥{w['stop_loss']:,}</div>
-                    </div>
-                </div>
-            </div>
-            <div style="font-size:0.85em">
-                <span style="color:{warn_c}">なぜ: {why}</span><br>
-                <span style="color:{sec_c}">出口: {exit_info}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"**{status_icon} {w['name']}** {w['code']} _{status_label}_")
+        wc1, wc2, wc3 = st.columns(3)
+        wc1.metric("現在値", f"¥{w['latest_price']:,.0f}")
+        wc2.metric("売り目標", f"¥{w['target']:,}")
+        wc3.metric("損切り", f"¥{w['stop_loss']:,}")
+        st.caption(f"なぜ: {why} | 出口: {exit_info}")
 
         # 詳細分析（展開）
         with st.expander(f"📈 {w['name']} 詳細分析"):
@@ -140,14 +113,7 @@ if deviated:
 
         col1, col2 = st.columns([5, 1])
         with col1:
-            st.markdown(f"""
-            <div style="background:#1A1F2E;padding:10px 14px;border-radius:8px;border-left:3px solid {severity_color}">
-                <span style="font-weight:600">{w['name']}</span>
-                <span style="color:{sec_c};margin-left:4px">{w['code']}</span>
-                <span style="color:{sec_c};margin-left:8px">¥{w['latest_price']:,.0f}</span>
-                <div style="color:{severity_color};font-size:0.85em;margin-top:4px">{dev_text}</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.warning(f"**{w['name']}** {w['code']} ¥{w['latest_price']:,.0f} — {dev_text}")
         with col2:
             if st.button("了解", key=f"dismiss_{w['code']}"):
                 remove_from_watchlist(w["code"], reason=dev_text)
@@ -157,20 +123,85 @@ if deviated:
 # ============================
 # セクション3: 新しい候補
 # ============================
-cached = load_screen_cache("おまかせ" if "scan_mode" not in dir() else scan_mode)
+
+# session_stateにスキャン結果を保持
+if "scan_results" not in st.session_state:
+    st.session_state.scan_results = None
+
+# キャッシュ or session_stateから結果取得
+cached = st.session_state.scan_results
+if cached is None:
+    cached = load_screen_cache("グロース市場" if "scan_mode" not in dir() else scan_mode)
 cache_info = get_cache_info()
 
-# 手動スキャン実行
+# スキャン実行
 if run:
-    from src.strategy.cache import clear_cache
-    clear_cache()
-    import threading
-    from src.scheduler.background import _run_scan
-    threading.Thread(target=_run_scan, daemon=True).start()
-    st.info("スキャンを開始しました。画面は自由に操作できます。数分後に自動更新されます。")
-    import time
-    time.sleep(3)
-    st.rerun()
+    from src.strategy.cache import save_screen_results as _save
+    from src.data.stocklist import get_growth_stocks, fetch_stocklist, get_stocks_by_sector
+    from src.strategy.screener import screen_stocks
+    from src.strategy.deep_analysis import run_deep_analysis
+    from src.data.watchlist import update_from_screening as _update_wl
+    _mode = scan_mode if "scan_mode" in dir() else "グロース市場"
+
+    with st.spinner("銘柄リスト取得中..."):
+        if _mode == "全市場":
+            _stocks = fetch_stocklist()
+        elif _mode == "業種指定" and "sector" in dir():
+            _stocks = get_stocks_by_sector(sector)
+        elif _mode == "銘柄指定" and "codes_input" in dir():
+            _codes = [c.strip() for c in codes_input.strip().split("\n") if c.strip()]
+            import pandas as _pd
+            _stocks = _pd.DataFrame({"code": _codes, "name": "", "market": "", "sector": ""})
+        else:
+            _stocks = get_growth_stocks()
+
+    _codes_list = _stocks["code"].tolist()  # 全銘柄スキャン
+    _name_map = dict(zip(_stocks["code"].astype(str), _stocks["name"]))
+
+    _progress = st.progress(0, text="Stage 1: スキャン中...")
+    _candidates = screen_stocks(
+        _codes_list, min_score=0,
+        progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 1: {code} ({c+1}/{t})"),
+    )
+    for _r in _candidates:
+        _jpx = _name_map.get(_r["code"], "")
+        if _jpx and _jpx.strip():
+            _r["name"] = _jpx
+
+    # デバッグ情報
+    debug = [c for c in _candidates if c.get("error")]
+    real = [c for c in _candidates if not c.get("error")]
+    if debug:
+        for d in debug:
+            st.error(f"{d.get('code')}: {d.get('name', '')}")
+            if d.get("traceback"):
+                with st.expander("詳細"):
+                    st.code(d["traceback"])
+        _candidates = real
+    st.caption(f"Stage 1通過: {len(_candidates)}件（{len(_codes_list)}銘柄スキャン）")
+
+    if _candidates:
+        _progress.progress(1.0, text=f"Stage 2: {len(_candidates)}銘柄を深層分析中...")
+        results_new = run_deep_analysis(
+            _candidates,
+            progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 2: {code} ({c+1}/{t})"),
+        )
+        _save(_mode, results_new)
+        _update_wl(results_new)
+        cached = results_new
+    else:
+        cached = []
+        results_new = []
+
+    _progress.empty()
+
+    # session_stateに保存（ページ遷移しても残る）
+    st.session_state.scan_results = cached
+    cache_info = get_cache_info()
+
+    if not cached:
+        st.info("条件に合う銘柄が見つかりませんでした")
+        st.stop()
 
 if cached:
     # ウォッチ済みの銘柄を除外
@@ -203,25 +234,14 @@ if cached:
 
             col1, col2 = st.columns([5, 1])
             with col1:
-                st.markdown(f"""
-                <div class="stock-card">
-                    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px">
-                        <div>
-                            <span style="font-size:1.1em;font-weight:700">{r.get('name', r['code'])}</span>
-                            <span style="color:{sec_c};margin-left:4px">{r['code']}</span>
-                            <span style="color:{grade_color};margin-left:8px">{stars}</span>
-                            {'<span class=\"badge\" style=\"background:#FFD700;color:#000;margin-left:6px\">勝ちパターン</span>' if is_best else ''}
-                        </div>
-                        <div style="display:flex;gap:14px;font-size:0.85em">
-                            <div><span style="color:{sec_c};font-size:0.7em">現在値</span><br>¥{current:,.0f}</div>
-                            <div><span style="color:{info_c};font-size:0.7em">買い</span><br><span style="color:{info_c}">¥{entry:,}</span></div>
-                            <div><span style="color:{buy_c};font-size:0.7em">売り</span><br><span style="color:{buy_c}">¥{target:,} +{reward:.0f}%</span></div>
-                            <div><span style="color:{sell_c};font-size:0.7em">損切</span><br><span style="color:{sell_c}">¥{stop:,}</span></div>
-                        </div>
-                    </div>
-                    <div style="color:{warn_c};font-size:0.85em">{why}</div>
-                </div>
-                """, unsafe_allow_html=True)
+                badge = " 🏆勝ちパターン" if is_best else ""
+                st.markdown(f"**{r.get('name', r['code'])}** {r['code']} {stars}{badge}")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("現在値", f"¥{current:,.0f}")
+                c2.metric("買い", f"¥{entry:,}")
+                c3.metric("売り", f"¥{target:,}", f"+{reward:.0f}%")
+                c4.metric("損切", f"¥{stop:,}")
+                st.caption(why)
             with col2:
                 if st.button("ウォッチ", key=f"watch_{r['code']}"):
                     add_from_screening(r)
@@ -281,7 +301,7 @@ if active and len(active) >= 2:
         )
 
     # 今日の線
-    fig.add_vline(x=today.isoformat(), line_dash="dot", line_color=warn_c, annotation_text="今日")
+    fig.add_vline(x=today, line_dash="dot", line_color=warn_c)
 
     fig.update_layout(
         height=max(150, len(active) * 60 + 50),
