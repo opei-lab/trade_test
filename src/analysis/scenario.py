@@ -172,9 +172,32 @@ def build_scenario(code: str, name: str, current_price: float, structure: dict =
 
     # セクター別勝ち確パターンのマッチング
     matched_patterns = match_sector_patterns(all_text, name)
+
+    # パターンの効果は時価総額で減衰する
+    # 小型（100億未満）: フルインパクト
+    # 中型（100-1000億）: 半減
+    # 大型（1000億超）: ほぼ無意味（株数が多すぎて動かない）
+    mcap = 0
+    if structure:
+        whale = structure.get("whale", {})
+        # infoがないので簡易推定: 現在値 × 推定発行株数
+        # 正確な値はStage 2のinfo取得時に更新される
+
+    cap_factor = 1.0  # デフォルト
+    if mcap > 100e9:  # 1000億超
+        cap_factor = 0.1  # ほぼ効かない
+    elif mcap > 10e9:  # 100億超
+        cap_factor = 0.5
+
     if matched_patterns:
-        high_count += len([p for p in matched_patterns if p["confidence"] >= 80])
-        medium_count += len([p for p in matched_patterns if p["confidence"] < 80])
+        effective = [p for p in matched_patterns if p["confidence"] * cap_factor >= 50]
+        high_count += len([p for p in effective if p["confidence"] >= 80])
+        medium_count += len([p for p in effective if p["confidence"] < 80])
+
+        # 大型株のパターンマッチは警告
+        if cap_factor < 0.5 and matched_patterns:
+            for p in matched_patterns:
+                p["note"] = "大型株のため株価への影響は限定的"
 
     # インパクトスコア
     impact_score = min(100, high_count * 25 + medium_count * 10 - negative_count * 20)

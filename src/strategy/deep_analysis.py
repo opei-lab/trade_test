@@ -42,6 +42,13 @@ def deep_analyze(candidate: dict) -> dict:
         info = get_stock_info(code)
         result["name"] = info.get("name") or result.get("name", code)
         result["market_cap"] = info.get("market_cap", 0)
+
+        # 大型株除外（時価総額1000億超は株数が多すぎて動かない）
+        mcap = info.get("market_cap", 0)
+        if mcap > 100e9:
+            result["has_story"] = False
+            result["skip_reason"] = f"時価総額{mcap/1e8:,.0f}億円。大型すぎて動きにくい"
+            return result
     except Exception:
         pass
 

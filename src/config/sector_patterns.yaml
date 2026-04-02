@@ -1,156 +1,298 @@
-# セクター別 勝ち確パターン
-# 各業界で「これが起きたらほぼ確実に上がる」事実ベースのパターン
+# セクター別 勝ち確パターン（実例ベース）
+# 過去に実際に株価が動いた事実から抽出
 
 biotech:
   name: "バイオ・創薬"
   match: ["医薬品", "Healthcare", "Biotechnology", "Drug", "バイオ"]
+  cap_limit: 50e9  # 500億未満が対象。大型バイオは動きにくい
   patterns:
-    - name: "早期承認制度指定"
-      description: "Breakthrough Therapy/Priority Review/Fast Track指定。承認率90%超"
-      ir_keywords: ["ブレークスルー", "優先審査", "ファストトラック", "早期承認", "SAKIGAKE", "先駆け"]
-      confidence: 95
-      typical_move: "2-5倍"
-      timeframe: "6-12ヶ月"
+    - name: "先駆け審査指定（SAKIGAKE）"
+      description: "PMDAの先駆け審査指定。審査期間12ヶ月→6ヶ月に短縮。指定時点で+30-100%"
+      ir_keywords: ["先駆け", "SAKIGAKE", "先駆け審査"]
+      confidence: 90
+      typical_move: "1.3-2倍"
+      timeframe: "指定発表即日"
+      trap: "指定されても試験失敗リスクは残る"
 
-    - name: "Phase 3良好→申請"
-      description: "Phase 3主要評価項目達成→承認申請。申請後の承認率85%"
-      ir_keywords: ["主要評価項目達成", "Phase 3", "第3相", "承認申請", "NDA", "BLA"]
+    - name: "条件付き早期承認"
+      description: "Phase 2結果で条件付き承認。再生医療等製品で特に有効。承認で+50-200%"
+      ir_keywords: ["条件付き早期承認", "条件付き承認", "期限付承認"]
       confidence: 85
       typical_move: "1.5-3倍"
-      timeframe: "6-18ヶ月"
+      timeframe: "承認発表即日"
+      trap: "条件付きなので市販後調査で取消リスクあり"
 
-    - name: "メガファーマ導出"
-      description: "大手製薬への導出契約。マイルストーン+ロイヤリティで収益確定"
-      ir_keywords: ["導出", "ライセンス契約", "提携契約", "マイルストーン", "ロイヤリティ"]
+    - name: "Phase 3主要評価項目達成→承認申請"
+      description: "Phase 3成功→申請後の承認確率85-90%。申請で一山、承認で一山"
+      ir_keywords: ["主要評価項目達成", "Phase 3", "第3相", "有意差", "承認申請", "NDA", "BLA"]
+      confidence: 85
+      typical_move: "1.5-3倍"
+      timeframe: "申請→承認: 6-18ヶ月"
+      trap: "効果量が小さいとPhase 3成功でも市場が反応しない"
+
+    - name: "メガファーマ導出契約"
+      description: "大手製薬へのライセンス。契約一時金が時価総額の10%超なら確実に反応"
+      ir_keywords: ["導出", "ライセンス契約", "ライセンスアウト", "提携契約", "マイルストーン", "ロイヤリティ"]
       confidence: 90
       typical_move: "2-10倍（時価総額による）"
-      timeframe: "即日-数週間"
+      timeframe: "発表即日-数週間"
+      trap: "契約一時金が小さい場合は見かけ倒し。マイルストーン到達しない可能性"
+      example: "そーせい: Heptares経由のメガファーマ導出で15-20倍"
 
-    - name: "前回データ良好→次回発表控え"
-      description: "前回の試験データが良好で、次の学会/発表が近い"
-      ir_keywords: ["奏功率", "完全寛解", "部分奏功", "ORR", "CR", "PR"]
+    - name: "前回臨床データ良好→次回学会発表控え"
+      description: "前回の試験で奏功率が高く、次の学会でデータ発表が予定されている"
+      ir_keywords: ["奏功率", "完全寛解", "部分奏功", "ORR", "CR", "PR", "学会発表"]
       confidence: 70
       typical_move: "1.5-3倍"
       timeframe: "学会まで"
+      trap: "小規模試験の結果は大規模で再現しないことがある"
+      example: "カルナバイオ: 前回データ良好→6月ASCO待ち"
 
-    - name: "適応拡大"
-      description: "既承認薬の新適応追加。既に安全性確立済みで承認リスク低"
-      ir_keywords: ["適応拡大", "追加適応", "併用療法"]
-      confidence: 80
-      typical_move: "1.3-2倍"
-      timeframe: "3-12ヶ月"
+    - name: "希少疾病用医薬品指定（オーファン）"
+      description: "患者5万人未満。優先審査+助成金+独占販売期間。指定で+20-50%"
+      ir_keywords: ["希少疾病", "オーファン", "希少疾患"]
+      confidence: 75
+      typical_move: "1.2-1.5倍"
+      timeframe: "指定発表即日"
+
+  traps:
+    - "MSワラント（新株予約権）の乱発で希釈される"
+    - "IR巧者: 適時開示のタイミングを操作して株価維持する企業"
+    - "コロナ関連テーマ: 期待先行で実態が伴わない"
+    - "Phase 2で有意差ありでも効果量が小さいと失敗する"
 
 semiconductor:
   name: "半導体"
-  match: ["半導体", "Semiconductor", "Electronic"]
+  match: ["半導体", "Semiconductor", "電気機器", "Electronic"]
+  cap_limit: 100e9
   patterns:
-    - name: "大手採用決定"
-      description: "TSMC/Intel/Samsung等のファウンドリまたは大手メーカーに採用決定"
-      ir_keywords: ["採用", "量産", "受注", "TSMC", "Intel", "Samsung"]
-      confidence: 85
-      typical_move: "1.5-3倍"
-      timeframe: "3-6ヶ月"
+    - name: "シリコンサイクル底→反転"
+      description: "半導体設備投資サイクルの底からの反転。装置メーカーが最も恩恵"
+      ir_keywords: ["受注回復", "設備投資", "CAPEX", "回復基調"]
+      confidence: 80
+      typical_move: "2-3倍（底→ピーク18-24ヶ月）"
+      timeframe: "18-24ヶ月"
+      trap: "ピークPERは誤解を招く。最高益時が株価ピーク"
+      example: "東京エレクトロン: コロナ後25000→60000"
 
-    - name: "設備投資拡大期"
-      description: "半導体サイクルの上昇局面で設備投資が拡大"
-      ir_keywords: ["設備投資", "CAPEX", "増産", "新工場", "ライン増設"]
+    - name: "新技術ノードの量産開始"
+      description: "EUV、先端パッケージング等の新技術で独占的ポジション"
+      ir_keywords: ["EUV", "先端パッケージ", "3Dパッケージ", "CoWoS", "HBM"]
+      confidence: 85
+      typical_move: "3-10倍"
+      timeframe: "認知拡大6-12ヶ月"
+      example: "レーザーテック: EUV検査独占で3000→30000（10倍）"
+
+    - name: "国内回帰の大型投資決定"
+      description: "TSMC熊本等の大型投資。サプライヤーに波及"
+      ir_keywords: ["TSMC", "ラピダス", "Rapidus", "国内工場", "新工場"]
       confidence: 75
       typical_move: "1.5-2倍"
-      timeframe: "6-12ヶ月"
+      timeframe: "発表→稼働2-3年"
 
-    - name: "技術的ブレイクスルー"
-      description: "業界標準になりうる新技術の発表"
-      ir_keywords: ["世界初", "業界初", "特許", "新技術", "次世代"]
-      confidence: 65
-      typical_move: "2-5倍"
-      timeframe: "1-2年"
+  traps:
+    - "シリコンサイクルのピークで買うと高値掴み"
+    - "中国規制で日本装置メーカーの売上減少リスク"
+    - "半導体関連の拡大解釈（本業と関係薄い）"
 
 ai_datacenter:
   name: "AI・データセンター"
-  match: ["データセンター", "AI", "GPU", "電力", "冷却"]
+  match: ["データセンター", "AI", "GPU", "クラウド"]
+  cap_limit: 50e9
   patterns:
-    - name: "大手テック向け受注"
-      description: "GAFAM/NVIDIA等からの受注確定"
-      ir_keywords: ["Google", "Amazon", "Microsoft", "NVIDIA", "受注", "契約", "データセンター"]
+    - name: "政府クラウド・AI基盤認定"
+      description: "経産省ガバメントクラウド認定やGENIAC採択"
+      ir_keywords: ["ガバメントクラウド", "GENIAC", "経産省", "クラウド認定", "計算基盤"]
       confidence: 85
-      typical_move: "2-5倍"
-      timeframe: "即日-数ヶ月"
+      typical_move: "3-10倍"
+      timeframe: "認定発表後数ヶ月"
+      example: "さくらインターネット: ガバメントクラウド認定で800→8000（10倍）"
 
-    - name: "政府補助金採択"
-      description: "経産省等の大型補助金に採択"
-      ir_keywords: ["補助金", "採択", "経産省", "NEDO", "助成"]
-      confidence: 80
-      typical_move: "1.5-3倍"
-      timeframe: "1-3ヶ月"
+    - name: "GPU大量調達・データセンター新設"
+      description: "NVIDIA GPU調達やDC新設の具体的発表"
+      ir_keywords: ["GPU", "NVIDIA", "データセンター新設", "H100", "A100"]
+      confidence: 75
+      typical_move: "2-5倍"
+      timeframe: "発表後数ヶ月"
+      trap: "GPU調達だけでは稼働率が低いと赤字。売上計上タイミングに注意"
+
+  traps:
+    - "AI関連の看板だけで実際のAI売上が小さい企業"
+    - "NVIDIAの株価に完全連動（本業と無関係）"
 
 saas:
   name: "SaaS・IT"
   match: ["情報・通信業", "Software", "SaaS", "Technology"]
+  cap_limit: 50e9
   patterns:
-    - name: "黒字転換"
-      description: "赤字から黒字に転換。収益モデルの実証"
-      ir_keywords: ["黒字", "黒字化", "営業利益", "経常利益"]
+    - name: "法制度変更による強制IT導入"
+      description: "電帳法・インボイス制度等で企業が強制的に導入。確実に需要増"
+      ir_keywords: ["電帳法", "インボイス", "マイナンバー", "法改正", "義務化"]
+      confidence: 80
+      typical_move: "2-3倍（法施行1-3年前から）"
+      timeframe: "法改正発表→施行: 1-3年"
+      example: "freee: インボイス対応で3000→12000"
+      trap: "法制度特需は一巡すると成長率急低下"
+
+    - name: "赤字SaaSの黒字転換"
+      description: "ARR成長を維持したまま黒字化。ステージ変化として最大のカタリスト"
+      ir_keywords: ["黒字", "黒字化", "営業利益", "黒字転換"]
       confidence: 80
       typical_move: "1.5-3倍"
-      timeframe: "1-3四半期"
+      timeframe: "発表後1-3四半期"
 
-    - name: "ARR急成長"
-      description: "年間経常収益が前年比50%超の成長"
-      ir_keywords: ["ARR", "MRR", "経常収益", "サブスクリプション", "前年比"]
-      confidence: 75
-      typical_move: "1.5-2倍"
-      timeframe: "次回決算まで"
-
-    - name: "大企業との資本提携"
-      description: "上場大企業との資本業務提携"
-      ir_keywords: ["資本業務提携", "資本提携", "第三者割当", "戦略的提携"]
+    - name: "エンタープライズ進出成功"
+      description: "SMB向けから大企業向けに進出。ARPU大幅上昇"
+      ir_keywords: ["エンタープライズ", "大企業", "ARPU", "単価上昇"]
       confidence: 70
-      typical_move: "1.3-2倍"
-      timeframe: "即日-数ヶ月"
+      typical_move: "1.5-2倍"
+
+  traps:
+    - "PSR30-50倍のSaaSバブル（2021年末がピーク）"
+    - "NRR未開示の企業は解約率が高い可能性"
 
 energy:
-  name: "エネルギー・再生可能"
-  match: ["電気・ガス業", "エネルギー", "太陽光", "風力", "原子力"]
+  name: "再エネ・電力"
+  match: ["電気・ガス業", "エネルギー", "太陽光", "風力", "バイオマス"]
+  cap_limit: 50e9
   patterns:
-    - name: "政策変更（規制緩和）"
-      description: "原発再稼働、FIT改定、再エネ目標引き上げ等"
-      ir_keywords: ["再稼働", "FIT", "規制緩和", "エネルギー基本計画"]
-      confidence: 75
-      typical_move: "1.3-2倍"
-      timeframe: "政策発表後数週間"
-
-    - name: "PPA大型契約"
-      description: "大型の電力購入契約（PPA）締結"
-      ir_keywords: ["PPA", "電力購入", "長期契約", "売電"]
+    - name: "大規模洋上風力の入札獲得"
+      description: "数千億円規模の洋上風力事業。獲得で一気に成長"
+      ir_keywords: ["洋上風力", "入札", "公募占用", "セントラル方式"]
       confidence: 80
-      typical_move: "1.5-2倍"
-      timeframe: "1-3ヶ月"
+      typical_move: "2-5倍"
+      timeframe: "入札結果発表後"
+      trap: "レノバの秋田落選パターン。入札制度のルール変更リスク"
+      example: "レノバ: 洋上風力期待で1000→5000（5倍）→落選で暴落"
+
+    - name: "電力価格高騰局面"
+      description: "JEPX卸電力市場の価格上昇で既存発電事業者の利益急増"
+      ir_keywords: ["JEPX", "電力価格", "卸電力", "スポット価格"]
+      confidence: 75
+      typical_move: "1.5-3倍"
+      timeframe: "価格高騰期間中"
+
+  traps:
+    - "FIT単価引き下げで新規案件の収益性悪化"
+    - "出力制御の増加（九州等で太陽光が頻発）"
 
 retail:
-  name: "小売・EC"
-  match: ["小売業", "Retail", "Consumer", "EC"]
+  name: "小売・外食"
+  match: ["小売業", "食料品", "Retail", "Consumer", "サービス業"]
+  cap_limit: 50e9
   patterns:
-    - name: "既存店売上連続上振れ"
-      description: "3ヶ月連続で既存店売上が前年比+5%超"
-      ir_keywords: ["既存店", "前年比", "売上高", "月次"]
+    - name: "既存店売上3ヶ月連続+5%超"
+      description: "既存店の実力成長。業績上振れがほぼ確定するシグナル"
+      ir_keywords: ["既存店", "前年比", "月次売上", "客数増"]
       confidence: 75
       typical_move: "1.3-2倍"
-      timeframe: "次回決算まで"
+      timeframe: "次回決算発表まで"
+      example: "神戸物産: 業務スーパー好調で3000→8000"
 
-    - name: "出店加速+黒字"
-      description: "新規出店が加速しつつ利益も確保"
-      ir_keywords: ["新規出店", "出店計画", "増収増益"]
+    - name: "新業態のヒット"
+      description: "既存の強みを活かした新業態が消費者に支持"
+      ir_keywords: ["新業態", "新ブランド", "新フォーマット"]
       confidence: 70
-      typical_move: "1.3-2倍"
-      timeframe: "6-12ヶ月"
+      typical_move: "2-5倍"
+      timeframe: "認知拡大6-12ヶ月"
+      example: "ワークマン: ワークマンプラスで3000→10000"
+
+  traps:
+    - "新規出店で売上を伸ばすが既存店が不振"
+    - "人手不足で出店計画未達"
+    - "月次データの季節性に騙される"
+
+real_estate:
+  name: "不動産"
+  match: ["不動産業", "Real Estate"]
+  cap_limit: 100e9
+  patterns:
+    - name: "金融緩和開始"
+      description: "日銀の利下げ・緩和でセクター全体が上昇"
+      ir_keywords: ["金融緩和", "利下げ", "量的緩和"]
+      confidence: 80
+      typical_move: "1.5-3倍"
+      timeframe: "緩和開始後6-12ヶ月"
+      trap: "金利上昇局面は逆風"
+
+    - name: "新規事業領域への展開成功"
+      description: "物流施設→冷凍倉庫→データセンター等の新分野"
+      ir_keywords: ["データセンター", "物流施設", "冷凍冷蔵"]
+      confidence: 75
+      typical_move: "3-10倍"
+      example: "霞ヶ関キャピタル: 物流→冷凍→DCで1000→15000（15倍）"
 
 defense:
   name: "防衛"
-  match: ["防衛", "ミサイル", "レーダー", "サイバー"]
+  match: ["防衛", "ミサイル", "レーダー", "航空機"]
   patterns:
-    - name: "防衛予算大幅増"
-      description: "政府の防衛予算が大幅増額"
-      ir_keywords: ["防衛予算", "装備品", "調達", "契約"]
+    - name: "防衛予算の大幅増額決定"
+      description: "GDP比2%等の政府決定。最も確実なカタリスト"
+      ir_keywords: ["防衛予算", "防衛力整備", "GDP比", "閣議決定"]
+      confidence: 85
+      typical_move: "2-5倍"
+      timeframe: "決定後6-12ヶ月で株価に反映"
+      example: "三菱重工: 防衛費増で4000→20000（5倍）"
+
+    - name: "地政学リスクの顕在化"
+      description: "北朝鮮ミサイル、台湾海峡等の緊張"
+      ir_keywords: ["ミサイル", "台湾", "有事", "安全保障"]
+      confidence: 70
+      typical_move: "1.3-2倍（即日）"
+      timeframe: "イベント即日-数日"
+      trap: "平和ムード回帰で急落する"
+
+    - name: "防衛装備品の輸出解禁"
+      description: "完成品の第三国輸出が可能に。市場が一気に拡大"
+      ir_keywords: ["装備移転", "輸出", "防衛装備"]
+      confidence: 75
+      typical_move: "1.5-3倍"
+
+  traps:
+    - "期待で買い事実で売り"
+    - "防衛省向け契約は利益率が低い（原価計算方式）"
+
+game:
+  name: "ゲーム・エンタメ"
+  match: ["ゲーム", "エンターテインメント", "アミューズメント"]
+  cap_limit: 100e9
+  patterns:
+    - name: "大型タイトルの初週販売が予想大幅超"
+      description: "発売後1週間の販売データが最重要。予想超えで急騰"
+      ir_keywords: ["販売本数", "初週", "出荷本数", "ダウンロード数"]
       confidence: 80
       typical_move: "1.5-3倍"
-      timeframe: "予算決定後数ヶ月"
+      example: "カプコン: モンハンシリーズの継続ヒット"
+
+    - name: "スマホゲームのセルラン1位"
+      description: "セールスランキング1位獲得。月商推定で業績インパクト算出"
+      ir_keywords: ["セールスランキング", "ランキング1位", "売上ランキング"]
+      confidence: 75
+      typical_move: "1.5-3倍"
+      example: "ウマ娘ヒットでCA株急騰"
+
+  traps:
+    - "一発屋リスク。次のタイトルがない"
+    - "開発遅延で期待剥落"
+
+chemicals:
+  name: "素材・化学"
+  match: ["化学", "素材", "Chemical", "ガラス"]
+  patterns:
+    - name: "素材市況の底→反転"
+      description: "塩ビ、シリコンウエハー等のコモディティ価格反転"
+      ir_keywords: ["市況回復", "価格上昇", "需給逼迫", "供給不足"]
+      confidence: 75
+      typical_move: "1.5-2倍"
+      timeframe: "6-12ヶ月"
+      example: "信越化学: 塩ビ高騰で12000→22000"
+
+    - name: "環境規制による残存者利益"
+      description: "中国等の環境規制で競合が脱落。残った企業が独占"
+      ir_keywords: ["環境規制", "操業停止", "供給制約", "PFAS"]
+      confidence: 70
+      typical_move: "1.5-3倍"
+
+  traps:
+    - "市況ピークで買うと高値掴み（典型的シクリカル）"
+    - "中国の過剰生産で価格崩壊"
