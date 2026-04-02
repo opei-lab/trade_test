@@ -246,40 +246,73 @@ def estimate_whale_position(df: pd.DataFrame) -> dict:
 
 
 def calc_upside_room(df: pd.DataFrame, current: float, resistance: dict, whale: dict) -> dict:
-    """上値の余地。しこりと大口保有から算出。"""
+    """上値の余地。しこり vs 大口の力関係で判断。"""
     clear_until = resistance.get("clear_until", current * 2)
     overhead_pct = resistance.get("overhead_pct", 50)
     vacuum_start = resistance.get("vacuum_start")
     vacuum_end = resistance.get("vacuum_end")
+    zones = resistance.get("zones", [])
+
+    whale_shares = whale.get("shares", 0)
+    whale_target = whale.get("target_low", 0)
+
+    # しこりの総売り圧力（上方の出来高の推定株数）
+    total_vol = sum(z.get("vol_pct", 0) for z in zones)
+    overhead_zones = [z for z in zones if z.get("mid", 0) > current]
+    overhead_shares_est = 0
+    can_absorb = True
+    absorb_until = current * 2  # デフォルト
+
+    for z in sorted(overhead_zones, key=lambda x: x.get("mid", 0)):
+        zone_vol_pct = z.get("vol_pct", 0)
+        # この価格帯のしこり株数を推定（全出来高に対する割合で推定）
+        zone_shares = zone_vol_pct * 10000  # 簡易推定
+
+        overhead_shares_est += zone_shares
+
+        # 大口がこのしこりを吸収できるか
+        if whale_shares > 0 and overhead_shares_est > whale_shares * 0.5:
+            # 大口の保有量の50%超のしこり = 吸収困難
+            can_absorb = False
+            absorb_until = z.get("mid", current * 1.5)
+            break
 
     # しこりがない区間の幅
     clear_room_pct = (clear_until - current) / current * 100 if current > 0 else 0
 
-    # 大口の目標圏
-    whale_target = whale.get("target_low", 0)
-
-    # 上値余地スコア
+    # スコア
     score = 0
     if overhead_pct < 20:
-        score += 40  # しこりが少ない
+        score += 30
     elif overhead_pct < 35:
-        score += 20
-    if clear_room_pct > 20:
-        score += 30  # 20%以上の空間がある
-    elif clear_room_pct > 10:
         score += 15
+    if clear_room_pct > 20:
+        score += 25
+    elif clear_room_pct > 10:
+        score += 10
     if vacuum_start:
-        score += 30  # 真空地帯あり
+        score += 25
+    if can_absorb:
+        score += 20  # 大口がしこりを消化できる
 
-    first_target = min(t for t in [clear_until, whale_target] if t > current) if whale_target > current else clear_until
+    # 目標価格の判定
+    if can_absorb and whale_target > 0:
+        realistic_target = whale_target  # 大口の目標まで到達可能
+    elif not can_absorb:
+        realistic_target = round(absorb_until * 0.95)  # 吸収できないしこりの手前
+    else:
+        realistic_target = clear_until
 
     return {
         "score": min(100, score),
         "clear_until": round(clear_until),
         "clear_room_pct": round(clear_room_pct, 1),
         "overhead_pct": overhead_pct,
-        "first_target": round(first_target),
+        "first_target": round(min(realistic_target, clear_until)),
+        "realistic_target": round(realistic_target),
+        "can_absorb_shikori": can_absorb,
         "vacuum": f"¥{vacuum_start:,}〜¥{vacuum_end:,}" if vacuum_start and vacuum_end else None,
+        "absorb_note": "大口の保有量でしこりを消化可能" if can_absorb else f"¥{round(absorb_until):,}付近のしこりが大口保有量を超える",
     }
 
 

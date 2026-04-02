@@ -202,14 +202,8 @@ def calc_entry_exit(df: pd.DataFrame, supply: dict, phase: dict, info: dict = No
     else:
         target = round(historical_high)
 
-    # しこり補正: 重いレジスタンスの手前に目標を下げる
-    if resistances:
-        # 出来高が集中するレジスタンス（しこり）
-        for res in sorted(resistances):
-            if res > current * 1.1 and res < target:
-                # しこりの5%手前を目標に
-                target = round(res * 0.95)
-                break  # 最初のしこりだけ
+    # しこり vs 大口の力関係で目標を判定
+    # しこりがあっても大口が消化できるなら目標はそのまま
 
     # ステージ変化がある場合のみ過去最高値を超える目標を許可
     stage_score = 0
