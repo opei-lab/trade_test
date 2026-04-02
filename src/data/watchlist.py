@@ -210,8 +210,16 @@ def check_plan_deviation(stock: dict, current_price: float, whale_phase: str) ->
 
     # 2. 大口が売りに転じた（仕込み→売り抜け）
     if plan.get("whale_phase") in ("accumulating", "holding") and whale_phase in ("distributing", "exited"):
-        deviations.append("大口が売りに転じた可能性（仕込み→売り抜けフェーズ）")
-        severity = "critical"
+        # 理由の推定
+        if current_price > plan.get("entry", 0) * 1.3:
+            deviations.append("大口が利確に転じた（目標圏に近い可能性。こちらも利確検討）")
+            severity = "warning"
+        elif current_price < plan.get("entry", 0) * 0.9:
+            deviations.append("大口が損切りで撤退した可能性（想定が外れた。即撤退推奨）")
+            severity = "critical"
+        else:
+            deviations.append("大口の動きが鈍化。仕込み→様子見に転じた可能性（監視継続）")
+            severity = "warning"
 
     # 3. 確度が大幅に低下
     history = stock.get("history", [])

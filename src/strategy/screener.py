@@ -525,6 +525,7 @@ def screen_stocks(
                 "is_best_pattern": is_best_pattern,
                 "is_good_pattern": is_good_pattern,
                 "historical_range": round(historical_range, 1),
+                "ret_3d": round((current - float(df["Close"].iloc[-4])) / float(df["Close"].iloc[-4]) * 100, 1) if len(df) >= 4 else 0,
                 "supply_score": supply.get("total", 0),
                 "float_scarcity": scarcity,
                 "market_cap": info.get("market_cap", 0),
