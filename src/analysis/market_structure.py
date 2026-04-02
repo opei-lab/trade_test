@@ -156,25 +156,47 @@ def calc_order_flow(df: pd.DataFrame) -> dict:
 
 
 def calc_resistance_map(df: pd.DataFrame, current: float) -> dict:
-    """しこりマップ。どこにどれだけの売り圧力があるか。"""
+    """しこりマップ。時間減衰付き。
+
+    古い出来高ほどしこりとしての影響が薄い:
+    - 直近3ヶ月: 100%（まだ残っている）
+    - 3-6ヶ月前: 50%（信用は解消済み。現物は半分残る）
+    - 6ヶ月-1年前: 20%（ほぼ解消済み）
+    - 1年超: 5%（ほぼ影響なし）
+    """
     close = df["Close"]
     volume = df["Volume"]
 
-    # 価格帯別出来高
     bins = 30
     price_min, price_max = float(close.min()), float(close.max())
     if price_min >= price_max:
         return {"overhead_pct": 0, "zones": [], "clear_until": current * 2}
 
+    # 時間減衰の重み付き出来高を計算
+    n = len(df)
+    decay_weights = np.ones(n)
+    for i in range(n):
+        days_ago = n - 1 - i
+        if days_ago <= 60:
+            decay_weights[i] = 1.0    # 直近3ヶ月: 100%
+        elif days_ago <= 120:
+            decay_weights[i] = 0.5    # 3-6ヶ月: 50%
+        elif days_ago <= 250:
+            decay_weights[i] = 0.2    # 6ヶ月-1年: 20%
+        else:
+            decay_weights[i] = 0.05   # 1年超: 5%
+
+    weighted_volume = volume * decay_weights
+
     edges = np.linspace(price_min, price_max, bins + 1)
     zones = []
-    total_vol = float(volume.sum())
+    total_vol = float(weighted_volume.sum())
 
     for i in range(len(edges) - 1):
         lo, hi = edges[i], edges[i + 1]
         mid = (lo + hi) / 2
         mask = (close >= lo) & (close < hi)
-        vol = float(volume[mask].sum())
+        vol = float(weighted_volume[mask].sum())
         pct = vol / total_vol * 100 if total_vol > 0 else 0
         zones.append({"price_low": round(lo), "price_high": round(hi), "mid": round(mid), "vol_pct": round(pct, 1)})
 
