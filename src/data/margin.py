@@ -50,9 +50,12 @@ def fetch_margin_data(code: str) -> dict:
         "margin_buy_avg_cost": 0,
         "is_heavy": False,
         "heaviness_reason": "",
+        "margin_trend": "",  # increasing / decreasing / stable
+        "weeks_data": [],    # 直近数週の推移
     }
 
     try:
+        # 信用残ページ（推移付き）
         url = f"https://kabutan.jp/stock/kabuka?code={code}&ashi=shin"
         resp = requests.get(url, headers=HEADERS, timeout=10)
         resp.encoding = "utf-8"
@@ -89,16 +92,29 @@ def fetch_margin_data(code: str) -> dict:
     except Exception:
         pass
 
+    # 信用残トレンド判定
+    buy_change = result["margin_buy_change"]
+    if buy_change < 0:
+        result["margin_trend"] = "decreasing"  # 買残減少 = 需給改善
+    elif buy_change > 0:
+        result["margin_trend"] = "increasing"  # 買残増加 = 上値重く
+    else:
+        result["margin_trend"] = "stable"
+
     # 上値の重さ判定
     reasons = []
     ratio = result["margin_ratio"]
     if ratio > 5:
-        reasons.append(f"信用倍率{ratio:.1f}倍（極めて重い）")
+        reasons.append(f"信用倍率{ratio:.1f}倍（極めて重い。上値に大量の売り圧力）")
     elif ratio > 3:
         reasons.append(f"信用倍率{ratio:.1f}倍（重い）")
+    elif 0 < ratio < 1:
+        reasons.append(f"信用倍率{ratio:.1f}倍（売り長。踏み上げの可能性）")
 
-    if result["margin_buy_change"] > 0:
-        reasons.append("信用買残が増加中")
+    if buy_change > 0:
+        reasons.append("信用買残が増加中（将来の売り圧力）")
+    elif buy_change < 0:
+        reasons.append("信用買残が減少中（需給改善）")
 
     result["is_heavy"] = ratio > 3
     result["heaviness_reason"] = " / ".join(reasons)

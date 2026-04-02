@@ -221,20 +221,45 @@ if cached:
             passed = conv.get("passed", [])
             why = " / ".join([p.get("name", "") for p in passed if p.get("weight", 0) >= 4][:3]) or "—"
 
+            # 推奨度（確度スコアをパーセント表示 + 色分け）
+            conv_score = conv.get("conviction_score", 0)
+            if conv_score >= 70:
+                rec_color = "🟢"
+                rec_label = "強く推奨"
+            elif conv_score >= 50:
+                rec_color = "🟡"
+                rec_label = "推奨"
+            elif conv_score >= 30:
+                rec_color = "🟠"
+                rec_label = "検討"
+            else:
+                rec_color = "⚪"
+                rec_label = "様子見"
+
+            # アルゴフェーズ
+            algo = r.get("algo_phase", "unknown")
+            algo_label = {"pre_algo": "🔵静か", "algo_entering": "🟡動き始め", "algo_active": "🔴過熱", "algo_exiting": "⚫撤退中"}.get(algo, "")
+
             col1, col2 = st.columns([5, 1])
             with col1:
+                # 1行目: 銘柄名 + 推奨度 + アルゴ
                 badge = " 🏆勝ちパターン" if is_best else ""
-                st.markdown(f"**{r.get('name', r['code'])}** {r['code']} {stars}{badge}")
+                st.markdown(f"**{r.get('name', r['code'])}** {r['code']} — {rec_color} **{rec_label} {conv_score}%** {algo_label}{badge}")
+
+                # 2行目: 価格
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("現在値", f"¥{current:,.0f}")
                 c2.metric("買い", f"¥{entry:,}")
                 c3.metric("売り", f"¥{target:,}", f"+{reward:.0f}%")
                 c4.metric("損切", f"¥{stop:,}")
-                st.caption(why)
-                # シナリオ（1行要約）
+
+                # 3行目: 理由
+                st.caption(f"根拠: {why}")
+
+                # 4行目: シナリオ
                 scenario_text = r.get("scenario_text", "")
                 if scenario_text:
-                    st.caption(scenario_text[:100])
+                    st.caption(scenario_text[:120])
             with col2:
                 if st.button("ウォッチ", key=f"watch_{r['code']}"):
                     add_from_screening(r)

@@ -188,19 +188,28 @@ def calc_entry_exit(df: pd.DataFrame, supply: dict, phase: dict, info: dict = No
     else:
         entry = round(current * 0.95)
 
-    # 目標: 過去の具体的な高値から選定
+    # 目標: 過去高値から選定し、しこりの手前で補正
     targets = price_levels["targets"]
     historical_high = price_levels["historical_high"]
+    resistances = price_levels.get("resistances", [])
 
     if targets:
-        # 2倍以上の候補があればそれを採用
         double_targets = [t for t in targets if t >= entry * 2]
         if double_targets:
-            target = double_targets[0]  # 最も近い2倍以上の目標
+            target = double_targets[0]
         else:
-            target = targets[-1]  # 最も高い候補
+            target = targets[-1]
     else:
         target = round(historical_high)
+
+    # しこり補正: 重いレジスタンスの手前に目標を下げる
+    if resistances:
+        # 出来高が集中するレジスタンス（しこり）
+        for res in sorted(resistances):
+            if res > current * 1.1 and res < target:
+                # しこりの5%手前を目標に
+                target = round(res * 0.95)
+                break  # 最初のしこりだけ
 
     # ステージ変化がある場合のみ過去最高値を超える目標を許可
     stage_score = 0
@@ -411,26 +420,28 @@ def screen_stocks(
             trade["risk_pct"] = 20
             trade["risk_reward"] = trade["reward_pct"] / 20 if trade["reward_pct"] > 0 else 0
 
-            # === Stage 1 足切り（不適格を除外するだけ。確度判定はStage 2）===
-            vol_anom = supply.get("volume_anomaly", 1)
-            squeeze = supply.get("squeeze", 0)
-            divergence = supply.get("divergence", 0)
-            supply_score = supply.get("total", 0)
+            # === Stage 1: 準備万端の銘柄だけ通す ===
 
-            # 底値圏でない → 除外
-            if price_position > 25:
-                continue
-            # 最低限のリターンがない → 除外
-            if trade["reward_pct"] < 20:
-                continue
-            if trade["risk_reward"] < 1.5:
-                continue
-            # 値動きの気配が全くない → 除外
-            has_any_signal = (vol_anom >= 1.1 or squeeze > 40 or divergence > 10 or supply_score > 30)
-            if not has_any_signal:
-                continue
-            # Phase E（売り抜け後）→ 除外
             if phase.get("phase") == "E":
+                continue
+
+            # 損切り-15%
+            trade["stop_loss"] = round(trade["entry"] * 0.85)
+            trade["risk_pct"] = 15
+            trade["risk_reward"] = trade["reward_pct"] / 15 if trade["reward_pct"] > 0 else 0
+
+            # ルートA: 既存銘柄（過去高値がある）
+            #   上値+50%以上、底値15%以下、RR3以上
+            # ルートB: 新規/青天井（過去高値が現在値に近い）
+            #   時価総額が小さく、底値圏で、過去高値の制約を受けない
+            historical_high = price_levels.get("historical_high", current)
+            upside_to_high = (historical_high - current) / current * 100 if current > 0 else 0
+
+            is_route_a = (trade["reward_pct"] >= 50 and price_position <= 15 and trade["risk_reward"] >= 3)
+            is_route_b = (price_position <= 10 and upside_to_high < 30 and current < 500)
+            # ルートB: 過去高値が近い（青天井候補）+ 超低位 + 深底値
+
+            if not is_route_a and not is_route_b:
                 continue
 
             # 勝ちパターンフラグ
