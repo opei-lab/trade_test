@@ -179,8 +179,11 @@ def update_daily(code: str, current_price: float, conviction_grade: str, convict
                 if stock["status"] == "watching":
                     stock["status"] = "attention"
 
-    # プランとの乖離チェック
-    stock["plan_deviation"] = check_plan_deviation(stock, current_price, whale_phase)
+    # プランとの乖離チェック（履歴2件以上で初めてチェック。追加直後は何も判定しない）
+    if len(history) >= 2:
+        stock["plan_deviation"] = check_plan_deviation(stock, current_price, whale_phase)
+    else:
+        stock["plan_deviation"] = {"deviations": [], "severity": "ok", "should_remove": False}
 
     stock["history"] = history
     stocks[code] = stock

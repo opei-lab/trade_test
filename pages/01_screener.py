@@ -45,6 +45,61 @@ with st.sidebar:
 # スキャン状態
 scan_status = get_scan_status()
 
+# session_state
+if "scan_results" not in st.session_state:
+    st.session_state.scan_results = None
+
+# ============================
+# スキャン実行（他より先に処理。完了後にrerunで再描画）
+# ============================
+if run:
+    st.session_state.scan_results = None
+    st.markdown("### スキャン中...")
+
+    from src.strategy.cache import save_screen_results as _save
+    from src.data.stocklist import get_growth_stocks, fetch_stocklist, get_stocks_by_sector
+    from src.strategy.screener import screen_stocks
+    from src.strategy.deep_analysis import run_deep_analysis
+    from src.data.watchlist import update_from_screening as _update_wl
+    _mode = scan_mode if "scan_mode" in dir() else "グロース市場"
+
+    if _mode == "全市場":
+        _stocks = fetch_stocklist()
+    elif _mode == "業種指定" and "sector" in dir():
+        _stocks = get_stocks_by_sector(sector)
+    elif _mode == "銘柄指定" and "codes_input" in dir():
+        _codes = [c.strip() for c in codes_input.strip().split("\n") if c.strip()]
+        import pandas as _pd
+        _stocks = _pd.DataFrame({"code": _codes, "name": "", "market": "", "sector": ""})
+    else:
+        _stocks = get_growth_stocks()
+
+    _codes_list = _stocks["code"].tolist()
+    _name_map = dict(zip(_stocks["code"].astype(str), _stocks["name"]))
+
+    _progress = st.progress(0, text="スキャン中...")
+    _candidates = screen_stocks(
+        _codes_list, min_score=0,
+        progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 1: {code} ({c+1}/{t})"),
+    )
+    for _r in _candidates:
+        _jpx = _name_map.get(_r["code"], "")
+        if _jpx and _jpx.strip():
+            _r["name"] = _jpx
+
+    if _candidates:
+        _progress.progress(1.0, text=f"Stage 2: {len(_candidates)}銘柄を分析中...")
+        _results = run_deep_analysis(
+            _candidates,
+            progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 2: {code} ({c+1}/{t})"),
+        )
+        _save(_mode, _results)
+        _update_wl(_results)
+        st.session_state.scan_results = _results
+    else:
+        st.session_state.scan_results = []
+
+    st.rerun()  # 再描画
 
 # ============================
 # セクション1: ウォッチ中の銘柄
@@ -125,83 +180,12 @@ if deviated:
 # ============================
 
 # session_stateにスキャン結果を保持
-if "scan_results" not in st.session_state:
-    st.session_state.scan_results = None
-
-# キャッシュ or session_stateから結果取得
 cached = st.session_state.scan_results
 if cached is None:
     cached = load_screen_cache("グロース市場" if "scan_mode" not in dir() else scan_mode)
 cache_info = get_cache_info()
 
-# スキャン実行
-if run:
-    from src.strategy.cache import save_screen_results as _save
-    from src.data.stocklist import get_growth_stocks, fetch_stocklist, get_stocks_by_sector
-    from src.strategy.screener import screen_stocks
-    from src.strategy.deep_analysis import run_deep_analysis
-    from src.data.watchlist import update_from_screening as _update_wl
-    _mode = scan_mode if "scan_mode" in dir() else "グロース市場"
-
-    with st.spinner("銘柄リスト取得中..."):
-        if _mode == "全市場":
-            _stocks = fetch_stocklist()
-        elif _mode == "業種指定" and "sector" in dir():
-            _stocks = get_stocks_by_sector(sector)
-        elif _mode == "銘柄指定" and "codes_input" in dir():
-            _codes = [c.strip() for c in codes_input.strip().split("\n") if c.strip()]
-            import pandas as _pd
-            _stocks = _pd.DataFrame({"code": _codes, "name": "", "market": "", "sector": ""})
-        else:
-            _stocks = get_growth_stocks()
-
-    _codes_list = _stocks["code"].tolist()  # 全銘柄スキャン
-    _name_map = dict(zip(_stocks["code"].astype(str), _stocks["name"]))
-
-    _progress = st.progress(0, text="Stage 1: スキャン中...")
-    _candidates = screen_stocks(
-        _codes_list, min_score=0,
-        progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 1: {code} ({c+1}/{t})"),
-    )
-    for _r in _candidates:
-        _jpx = _name_map.get(_r["code"], "")
-        if _jpx and _jpx.strip():
-            _r["name"] = _jpx
-
-    # デバッグ情報
-    debug = [c for c in _candidates if c.get("error")]
-    real = [c for c in _candidates if not c.get("error")]
-    if debug:
-        for d in debug:
-            st.error(f"{d.get('code')}: {d.get('name', '')}")
-            if d.get("traceback"):
-                with st.expander("詳細"):
-                    st.code(d["traceback"])
-        _candidates = real
-    st.caption(f"Stage 1通過: {len(_candidates)}件（{len(_codes_list)}銘柄スキャン）")
-
-    if _candidates:
-        _progress.progress(1.0, text=f"Stage 2: {len(_candidates)}銘柄を深層分析中...")
-        results_new = run_deep_analysis(
-            _candidates,
-            progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 2: {code} ({c+1}/{t})"),
-        )
-        _save(_mode, results_new)
-        _update_wl(results_new)
-        cached = results_new
-    else:
-        cached = []
-        results_new = []
-
-    _progress.empty()
-
-    # session_stateに保存（ページ遷移しても残る）
-    st.session_state.scan_results = cached
-    cache_info = get_cache_info()
-
-    if not cached:
-        st.info("条件に合う銘柄が見つかりませんでした")
-        st.stop()
+    # (スキャン処理はページ先頭のif runブロックで実行済み)
 
 if cached:
     # ウォッチ済みの銘柄を除外
@@ -209,12 +193,20 @@ if cached:
     new_candidates = [r for r in cached if r.get("code") not in watch_codes]
 
     if new_candidates:
+        # 勝ちパターン合致のみ上位表示、それ以外は折りたたみ
+        best = [r for r in new_candidates if r.get("is_best_pattern") or r.get("is_good_pattern")]
+        others = [r for r in new_candidates if r not in best]
+
         st.markdown("---")
         ts = cache_info.get("timestamp", "")[:16].replace("T", " ") if cache_info else ""
-        st.markdown(f"## 新しい候補")
-        st.caption(f"{ts} のスキャン結果")
+        st.markdown(f"## 新しい候補（{len(best)}件 / {len(new_candidates)}件中）")
+        if ts:
+            st.caption(f"{ts} のスキャン結果")
 
-        for r in new_candidates:
+        if not best:
+            st.info("勝ちパターンに合致する銘柄は現在ありません。下の「その他」に候補があります。")
+
+        for r in best:
             conv = r.get("conviction", {}) if isinstance(r.get("conviction"), dict) else {}
             grade = conv.get("grade", "?")
             stars_n = {"S": 5, "A": 4, "B": 3, "C": 2, "D": 1}.get(grade, 1)
@@ -250,68 +242,48 @@ if cached:
             with st.expander(f"詳細レポート"):
                 st.markdown(generate_report(r))
 
+        if others:
+            with st.expander(f"その他の候補（{len(others)}件）"):
+                for r in others:
+                    conv = r.get("conviction", {}) if isinstance(r.get("conviction"), dict) else {}
+                    passed = conv.get("passed", [])
+                    why_o = " / ".join([p.get("name", "") for p in passed if p.get("weight", 0) >= 4][:3]) or "—"
+                    st.markdown(f"**{r.get('name', r['code'])}** {r['code']} — ¥{r.get('current_price', 0):,.0f} → ¥{r.get('target', 0):,}（+{r.get('reward_pct', 0):.0f}%） _{why_o}_")
+
 # ============================
-# 渡り鳥タイムライン
+# 渡り鳥プラン
 # ============================
-if active and len(active) >= 2:
+if active:
     st.markdown("---")
-    st.markdown("## 渡り鳥タイムライン")
+    st.markdown("## 渡り鳥プラン")
 
-    import plotly.graph_objects as go
     from datetime import timedelta
-
     today = date.today()
-    fig = go.Figure()
+    sorted_active = sorted(active, key=lambda w: w.get("target_date", "9999"))
 
-    for i, w in enumerate(active):
-        start = today
-        exit_date_str = w.get("target_date", "")
-        if exit_date_str:
+    running_capital = 100
+    for i, w in enumerate(sorted_active):
+        exit_event = w.get("exit_event", "")
+        target_date_str = w.get("target_date", "")
+        target_val = w.get("target", 0)
+        latest = w.get("latest_price", 0)
+
+        if target_date_str:
             try:
-                end = date.fromisoformat(exit_date_str[:10])
+                days_left = (date.fromisoformat(target_date_str[:10]) - today).days
+                period_str = f"{exit_event}（{days_left}日後）" if exit_event else f"{days_left}日後"
             except Exception:
-                end = today + timedelta(days=60)
+                period_str = exit_event or "期間未定"
         else:
-            end = today + timedelta(days=60)
+            period_str = exit_event or "期間未定"
 
-        color = buy_c if w["status"] == "action" else warn_c if w["status"] == "attention" else sec_c
+        reward = (target_val - latest) / latest * 100 if latest > 0 else 0
+        next_capital = running_capital * (1 + reward / 100)
 
-        # 保有期間バー
-        fig.add_trace(go.Scatter(
-            x=[start, end], y=[i, i], mode="lines",
-            line=dict(color=color, width=12), showlegend=False,
-            hovertext=f"{w['name']}: ¥{w.get('latest_price', 0):,.0f}→¥{w.get('target', 0):,}",
-        ))
+        st.markdown(f"**{i+1}. {w['name']}** {w['code']} — ¥{latest:,.0f}→¥{target_val:,}（+{reward:.0f}%） | {period_str} | ¥{running_capital:.0f}万→¥{next_capital:.0f}万")
+        running_capital = next_capital
 
-        # イベントマーカー
-        if exit_date_str:
-            fig.add_trace(go.Scatter(
-                x=[end], y=[i], mode="markers+text",
-                marker=dict(size=12, color=sell_c, symbol="star"),
-                text=[w.get("exit_event", "")[:10]], textposition="top center",
-                textfont=dict(size=9, color=COLORS["text_primary"]),
-                showlegend=False,
-            ))
-
-        # 銘柄名
-        fig.add_annotation(
-            x=start, y=i, text=f"<b>{w['name']}</b> ¥{w.get('latest_price', 0):,.0f}→¥{w.get('target', 0):,}",
-            showarrow=False, xanchor="right", xshift=-10,
-            font=dict(size=10, color=COLORS["text_primary"]),
-        )
-
-    # 今日の線
-    fig.add_vline(x=today, line_dash="dot", line_color=warn_c)
-
-    fig.update_layout(
-        height=max(150, len(active) * 60 + 50),
-        yaxis=dict(visible=False),
-        xaxis=dict(title=""),
-        template="plotly_dark",
-        paper_bgcolor="#0E1117", plot_bgcolor="#0E1117",
-        margin=dict(l=180, r=20, t=10, b=30),
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    st.markdown(f"**合計: ¥100万→¥{running_capital:.0f}万（{running_capital/100:.1f}倍）**")
 
 elif not active and not cached and not scan_status["running"]:
     st.markdown(f"""

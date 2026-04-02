@@ -399,7 +399,11 @@ def screen_stocks(
             price_levels = find_price_targets(df)
 
             current = float(df["Close"].iloc[-1])
-            historical_range = price_levels["historical_high"] / max(price_levels["historical_low"], 1)
+            # ボラは直近6ヶ月で見る（全期間だと昔の急騰が残って緩くなる）
+            recent_6m = df.tail(min(120, len(df)))
+            recent_high = float(recent_6m["Close"].max())
+            recent_low = float(recent_6m["Close"].min())
+            historical_range = recent_high / max(recent_low, 1)
             price_position = supply.get("price_position", 50)
 
             # 損切り-20%
@@ -407,17 +411,32 @@ def screen_stocks(
             trade["risk_pct"] = 20
             trade["risk_reward"] = trade["reward_pct"] / 20 if trade["reward_pct"] > 0 else 0
 
-            # 最低条件（バックテスト実証済みの基本フィルタのみ）
-            if historical_range < 2:
-                continue  # ボラなし除外
-            if trade["reward_pct"] < 10:
-                continue  # 手数料負け
-            if trade["risk_reward"] < 1.5:
-                continue  # RR不足
+            # === フィルタ ===
+            vol_anom = supply.get("volume_anomaly", 1)
+            squeeze = supply.get("squeeze", 0)
+            divergence = supply.get("divergence", 0)
+            supply_score = supply.get("total", 0)
+
+            # 底値圏
+            if price_position > 20:
+                continue
+            # リターンとRR
+            if trade["reward_pct"] < 30:
+                continue
+            if trade["risk_reward"] < 2:
+                continue
+            # 需給条件を3つ以上同時に（signals>=4で勝率75%）
+            signals = 0
+            if vol_anom >= 1.2: signals += 1   # 出来高変化
+            if squeeze > 50: signals += 1      # ボラ収縮
+            if divergence > 20: signals += 1   # 売り枯れ
+            if supply_score > 40: signals += 1 # 需給スコア高
+            if signals < 3:
+                continue
 
             # 勝ちパターンフラグ
-            is_best_pattern = (current < 1000 and price_position < 25 and historical_range >= 2.5)
-            is_good_pattern = (price_position < 30 and historical_range >= 2.5)
+            is_best_pattern = (price_position < 15 and historical_range >= 3)
+            is_good_pattern = (price_position < 25 and historical_range >= 2.5)
 
             floor = calc_downside_floor(df, {})
             asymmetry = calc_asymmetry_score(trade["reward_pct"], floor.get("max_downside_pct", 20))
