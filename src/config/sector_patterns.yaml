@@ -1,0 +1,156 @@
+# セクター別 勝ち確パターン
+# 各業界で「これが起きたらほぼ確実に上がる」事実ベースのパターン
+
+biotech:
+  name: "バイオ・創薬"
+  match: ["医薬品", "Healthcare", "Biotechnology", "Drug", "バイオ"]
+  patterns:
+    - name: "早期承認制度指定"
+      description: "Breakthrough Therapy/Priority Review/Fast Track指定。承認率90%超"
+      ir_keywords: ["ブレークスルー", "優先審査", "ファストトラック", "早期承認", "SAKIGAKE", "先駆け"]
+      confidence: 95
+      typical_move: "2-5倍"
+      timeframe: "6-12ヶ月"
+
+    - name: "Phase 3良好→申請"
+      description: "Phase 3主要評価項目達成→承認申請。申請後の承認率85%"
+      ir_keywords: ["主要評価項目達成", "Phase 3", "第3相", "承認申請", "NDA", "BLA"]
+      confidence: 85
+      typical_move: "1.5-3倍"
+      timeframe: "6-18ヶ月"
+
+    - name: "メガファーマ導出"
+      description: "大手製薬への導出契約。マイルストーン+ロイヤリティで収益確定"
+      ir_keywords: ["導出", "ライセンス契約", "提携契約", "マイルストーン", "ロイヤリティ"]
+      confidence: 90
+      typical_move: "2-10倍（時価総額による）"
+      timeframe: "即日-数週間"
+
+    - name: "前回データ良好→次回発表控え"
+      description: "前回の試験データが良好で、次の学会/発表が近い"
+      ir_keywords: ["奏功率", "完全寛解", "部分奏功", "ORR", "CR", "PR"]
+      confidence: 70
+      typical_move: "1.5-3倍"
+      timeframe: "学会まで"
+
+    - name: "適応拡大"
+      description: "既承認薬の新適応追加。既に安全性確立済みで承認リスク低"
+      ir_keywords: ["適応拡大", "追加適応", "併用療法"]
+      confidence: 80
+      typical_move: "1.3-2倍"
+      timeframe: "3-12ヶ月"
+
+semiconductor:
+  name: "半導体"
+  match: ["半導体", "Semiconductor", "Electronic"]
+  patterns:
+    - name: "大手採用決定"
+      description: "TSMC/Intel/Samsung等のファウンドリまたは大手メーカーに採用決定"
+      ir_keywords: ["採用", "量産", "受注", "TSMC", "Intel", "Samsung"]
+      confidence: 85
+      typical_move: "1.5-3倍"
+      timeframe: "3-6ヶ月"
+
+    - name: "設備投資拡大期"
+      description: "半導体サイクルの上昇局面で設備投資が拡大"
+      ir_keywords: ["設備投資", "CAPEX", "増産", "新工場", "ライン増設"]
+      confidence: 75
+      typical_move: "1.5-2倍"
+      timeframe: "6-12ヶ月"
+
+    - name: "技術的ブレイクスルー"
+      description: "業界標準になりうる新技術の発表"
+      ir_keywords: ["世界初", "業界初", "特許", "新技術", "次世代"]
+      confidence: 65
+      typical_move: "2-5倍"
+      timeframe: "1-2年"
+
+ai_datacenter:
+  name: "AI・データセンター"
+  match: ["データセンター", "AI", "GPU", "電力", "冷却"]
+  patterns:
+    - name: "大手テック向け受注"
+      description: "GAFAM/NVIDIA等からの受注確定"
+      ir_keywords: ["Google", "Amazon", "Microsoft", "NVIDIA", "受注", "契約", "データセンター"]
+      confidence: 85
+      typical_move: "2-5倍"
+      timeframe: "即日-数ヶ月"
+
+    - name: "政府補助金採択"
+      description: "経産省等の大型補助金に採択"
+      ir_keywords: ["補助金", "採択", "経産省", "NEDO", "助成"]
+      confidence: 80
+      typical_move: "1.5-3倍"
+      timeframe: "1-3ヶ月"
+
+saas:
+  name: "SaaS・IT"
+  match: ["情報・通信業", "Software", "SaaS", "Technology"]
+  patterns:
+    - name: "黒字転換"
+      description: "赤字から黒字に転換。収益モデルの実証"
+      ir_keywords: ["黒字", "黒字化", "営業利益", "経常利益"]
+      confidence: 80
+      typical_move: "1.5-3倍"
+      timeframe: "1-3四半期"
+
+    - name: "ARR急成長"
+      description: "年間経常収益が前年比50%超の成長"
+      ir_keywords: ["ARR", "MRR", "経常収益", "サブスクリプション", "前年比"]
+      confidence: 75
+      typical_move: "1.5-2倍"
+      timeframe: "次回決算まで"
+
+    - name: "大企業との資本提携"
+      description: "上場大企業との資本業務提携"
+      ir_keywords: ["資本業務提携", "資本提携", "第三者割当", "戦略的提携"]
+      confidence: 70
+      typical_move: "1.3-2倍"
+      timeframe: "即日-数ヶ月"
+
+energy:
+  name: "エネルギー・再生可能"
+  match: ["電気・ガス業", "エネルギー", "太陽光", "風力", "原子力"]
+  patterns:
+    - name: "政策変更（規制緩和）"
+      description: "原発再稼働、FIT改定、再エネ目標引き上げ等"
+      ir_keywords: ["再稼働", "FIT", "規制緩和", "エネルギー基本計画"]
+      confidence: 75
+      typical_move: "1.3-2倍"
+      timeframe: "政策発表後数週間"
+
+    - name: "PPA大型契約"
+      description: "大型の電力購入契約（PPA）締結"
+      ir_keywords: ["PPA", "電力購入", "長期契約", "売電"]
+      confidence: 80
+      typical_move: "1.5-2倍"
+      timeframe: "1-3ヶ月"
+
+retail:
+  name: "小売・EC"
+  match: ["小売業", "Retail", "Consumer", "EC"]
+  patterns:
+    - name: "既存店売上連続上振れ"
+      description: "3ヶ月連続で既存店売上が前年比+5%超"
+      ir_keywords: ["既存店", "前年比", "売上高", "月次"]
+      confidence: 75
+      typical_move: "1.3-2倍"
+      timeframe: "次回決算まで"
+
+    - name: "出店加速+黒字"
+      description: "新規出店が加速しつつ利益も確保"
+      ir_keywords: ["新規出店", "出店計画", "増収増益"]
+      confidence: 70
+      typical_move: "1.3-2倍"
+      timeframe: "6-12ヶ月"
+
+defense:
+  name: "防衛"
+  match: ["防衛", "ミサイル", "レーダー", "サイバー"]
+  patterns:
+    - name: "防衛予算大幅増"
+      description: "政府の防衛予算が大幅増額"
+      ir_keywords: ["防衛予算", "装備品", "調達", "契約"]
+      confidence: 80
+      typical_move: "1.5-3倍"
+      timeframe: "予算決定後数ヶ月"
