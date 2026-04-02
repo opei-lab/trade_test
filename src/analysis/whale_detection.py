@@ -182,6 +182,72 @@ def detect_algo_thresholds(df: pd.DataFrame) -> dict:
     }
 
 
+def detect_algo_phase(df: pd.DataFrame) -> dict:
+    """アルゴの参入フェーズを検出する。
+
+    アルゴは出来高と価格の閾値で機械的に動く。
+    今この銘柄にアルゴが入っているか、いないかを判定する。
+
+    Returns:
+        {
+            "phase": "pre_algo" | "algo_entering" | "algo_active" | "algo_exiting",
+            "description": 説明,
+            "opportunity": 投資機会としての評価,
+        }
+    """
+    close = df["Close"]
+    volume = df["Volume"]
+
+    if len(df) < 30:
+        return {"phase": "unknown", "description": "データ不足", "opportunity": "unknown"}
+
+    vol_25avg = float(volume.rolling(25).mean().iloc[-1])
+    vol_today = float(volume.iloc[-1])
+    vol_3d = float(volume.tail(3).mean())
+    vol_ratio = vol_today / vol_25avg if vol_25avg > 0 else 1
+    vol_3d_ratio = vol_3d / vol_25avg if vol_25avg > 0 else 1
+
+    # 出来高の変化パターン
+    vol_increasing = vol_3d_ratio > 1.5
+    vol_explosive = vol_ratio > 5
+    vol_declining_from_peak = False
+    if len(volume) >= 10:
+        peak_vol = float(volume.tail(10).max())
+        vol_declining_from_peak = vol_today < peak_vol * 0.5 and peak_vol > vol_25avg * 3
+
+    # 値動きの速度（日中ボラティリティ）
+    intraday_range = (df["High"] - df["Low"]) / df["Close"]
+    avg_range = float(intraday_range.tail(5).mean())
+    normal_range = float(intraday_range.tail(60).mean())
+    range_spike = avg_range > normal_range * 2
+
+    # 判定
+    if vol_explosive and range_spike:
+        return {
+            "phase": "algo_active",
+            "description": f"アルゴが活発に動いている（出来高{vol_ratio:.0f}倍、値幅2倍超）。今から入ると高値掴みリスク大",
+            "opportunity": "dangerous",
+        }
+    elif vol_increasing and not vol_explosive:
+        return {
+            "phase": "algo_entering",
+            "description": f"アルゴが参入し始めている（出来高{vol_3d_ratio:.1f}倍）。モメンタム加速の初期段階",
+            "opportunity": "caution",
+        }
+    elif vol_declining_from_peak:
+        return {
+            "phase": "algo_exiting",
+            "description": "アルゴが撤退中（出来高がピークから半減）。売り圧力が増している",
+            "opportunity": "exit",
+        }
+    else:
+        return {
+            "phase": "pre_algo",
+            "description": "アルゴ未参入。静かな状態。仕込みのチャンス",
+            "opportunity": "best",
+        }
+
+
 def detect_whale_accumulation(df: pd.DataFrame, info: dict = None) -> dict:
     """クジラ（大口投資家）の買い集めを総合判定する。
 

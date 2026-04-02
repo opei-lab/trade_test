@@ -14,7 +14,7 @@ from src.data.margin import fetch_margin_data
 from src.data.tdnet import detect_dilution_risk, detect_positive_catalysts
 from src.analysis.resistance import calc_ceiling_score, detect_volume_vacuum
 from src.analysis.sector_strength import calc_relative_strength
-from src.analysis.whale_detection import detect_whale_accumulation
+from src.analysis.whale_detection import detect_whale_accumulation, detect_algo_phase
 from src.analysis.whale_plan import reconstruct_whale_plan
 from src.analysis.market_structure import analyze_full_structure, format_structure_report
 from src.analysis.scenario import build_scenario
@@ -156,10 +156,22 @@ def deep_analyze(candidate: dict) -> dict:
     except Exception:
         pass
 
-    # --- 大口・アルゴ検出 ---
+    # --- アルゴフェーズ + 大口検出 ---
     try:
         df = fetch_price(code, period_days=365)
         if not df.empty:
+            # アルゴの参入状態
+            algo_phase = detect_algo_phase(df)
+            result["algo_phase"] = algo_phase.get("phase", "unknown")
+            result["algo_description"] = algo_phase.get("description", "")
+            result["algo_opportunity"] = algo_phase.get("opportunity", "unknown")
+
+            # アルゴが活発な銘柄は除外（高値掴みリスク）
+            if algo_phase.get("opportunity") == "dangerous":
+                result["has_story"] = False
+                result["skip_reason"] = algo_phase["description"]
+                return result
+
             whale = detect_whale_accumulation(df, info)
             result["whale_score"] = whale.get("whale_score", 0)
             result["whale_summary"] = whale.get("summary", "")
