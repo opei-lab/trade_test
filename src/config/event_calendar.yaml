@@ -1,0 +1,131 @@
+# 業界別 価値確定イベントカレンダー
+# 各業界で「いつ、何が起きると、株価が動くか」のパターン定義
+# month: 月（1-12）、timing: "early"/"mid"/"late"
+
+healthcare:
+  match_sectors: ["医薬品", "Healthcare", "Biotechnology"]
+  events:
+    - name: "AACR（米国癌学会）"
+      month: 4
+      timing: "mid"
+      impact: "がん領域の臨床データ発表"
+      watch_window_days: 14
+    - name: "ASCO（米国臨床腫瘍学会）"
+      month: 6
+      timing: "early"
+      impact: "がん領域最大の学会。Phase2/3データが出る"
+      watch_window_days: 21
+    - name: "ESMO（欧州腫瘍学会）"
+      month: 9
+      timing: "mid"
+      impact: "欧州最大。ASCOで出なかったデータが出る"
+      watch_window_days: 14
+    - name: "ASH（米国血液学会）"
+      month: 12
+      timing: "early"
+      impact: "血液がん・遺伝子治療のデータ"
+      watch_window_days: 14
+    - name: "JP MORGAN Healthcare Conference"
+      month: 1
+      timing: "mid"
+      impact: "年初の方針発表。提携・買収の発表が多い"
+      watch_window_days: 7
+    - name: "FDA審査期日（PDUFA）"
+      month: null  # 銘柄固有。IRで公表される
+      timing: null
+      impact: "承認/不承認の二値イベント。株価が大きく動く"
+      watch_window_days: 3
+
+semiconductor:
+  match_sectors: ["半導体", "Semiconductor", "電気機器"]
+  events:
+    - name: "TSMC決算"
+      months: [1, 4, 7, 10]
+      timing: "mid"
+      impact: "半導体サイクルの先行指標。設備投資計画が出る"
+      watch_window_days: 7
+    - name: "NVIDIA GTC"
+      month: 3
+      timing: "mid"
+      impact: "AI半導体のロードマップ。関連銘柄に波及"
+      watch_window_days: 14
+    - name: "SEMICON Japan"
+      month: 12
+      timing: "mid"
+      impact: "日本の半導体装置メーカーの受注動向"
+      watch_window_days: 7
+    - name: "NVIDIA決算"
+      months: [2, 5, 8, 11]
+      timing: "late"
+      impact: "AI需要の実態。データセンター向け売上が指標"
+      watch_window_days: 7
+
+ai_power:
+  match_sectors: ["電気・ガス業", "情報・通信業"]
+  match_keywords: ["データセンター", "AI", "電力", "冷却"]
+  events:
+    - name: "大手テック決算シーズン"
+      months: [1, 4, 7, 10]
+      timing: "late"
+      impact: "CAPEX（設備投資）計画。データセンター投資額が指標"
+      watch_window_days: 14
+    - name: "エネルギー基本計画改定"
+      month: null
+      timing: null
+      impact: "政府のエネルギー政策。原発再稼働、再エネ目標"
+      watch_window_days: 30
+
+nuclear_fusion:
+  match_keywords: ["核融合", "プラズマ", "レーザー"]
+  events:
+    - name: "IAEA Fusion Energy Conference"
+      month: 10
+      timing: "mid"
+      impact: "核融合研究の最新成果発表"
+      watch_window_days: 14
+
+real_estate:
+  match_sectors: ["不動産業", "Real Estate"]
+  events:
+    - name: "日銀金融政策決定会合"
+      months: [1, 3, 4, 6, 7, 9, 10, 12]
+      timing: "mid"
+      impact: "金利変動 → 不動産・REITに直撃"
+      watch_window_days: 3
+
+retail:
+  match_sectors: ["小売業", "食料品", "Retail", "Consumer"]
+  events:
+    - name: "月次売上発表"
+      months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      timing: "early"
+      impact: "既存店売上前年比。連続で上振れ = ステージ変化"
+      watch_window_days: 5
+    - name: "決算シーズン"
+      months: [2, 5, 8, 11]
+      timing: "mid"
+      impact: "通期/半期決算。上方修正の有無"
+      watch_window_days: 7
+
+general:
+  events:
+    - name: "決算シーズン（日本）"
+      months: [2, 5, 8, 11]
+      timing: "mid"
+      impact: "四半期決算。上方修正・増配は株価に直結"
+      watch_window_days: 14
+    - name: "IPOロックアップ解除"
+      month: null
+      timing: null
+      impact: "上場90日/180日後。大株主の売りが出る可能性"
+      watch_window_days: 7
+    - name: "株主総会シーズン"
+      month: 6
+      timing: "late"
+      impact: "3月期決算企業の株主総会。議案次第で動く"
+      watch_window_days: 7
+    - name: "MSCI/TOPIX組入変更"
+      months: [5, 11]
+      timing: "late"
+      impact: "指数組入 = パッシブファンドの強制買い"
+      watch_window_days: 7

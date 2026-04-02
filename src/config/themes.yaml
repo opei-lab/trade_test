@@ -1,0 +1,73 @@
+# テーマ辞書
+# 各テーマに関連するキーワードとセクター/銘柄を定義
+# ニュース・IRのスキャンに使用
+
+ai_power:
+  name: "AI電力・データセンター"
+  keywords: ["データセンター", "AI電力", "GPU冷却", "液浸冷却", "電力需要", "CAPEX", "サーバー", "HPC"]
+  related_sectors: ["電気・ガス業", "電気機器", "情報・通信業"]
+  catalysts: ["大手テックのCAPEX発表", "NVIDIA決算", "データセンター新設発表"]
+  known_codes: ["3133", "9519", "6366"]
+
+nuclear_fusion:
+  name: "核融合"
+  keywords: ["核融合", "プラズマ", "レーザー核融合", "トカマク", "ITER", "ヘリカル"]
+  related_sectors: ["電気機器", "機械"]
+  catalysts: ["IAEA会議", "実験成果発表", "政府予算"]
+  known_codes: []
+
+optical_semiconductor:
+  name: "光半導体・フォトニクス"
+  keywords: ["光半導体", "フォトニクス", "シリコンフォトニクス", "光配線", "光トランシーバ", "光インターコネクト"]
+  related_sectors: ["電気機器", "半導体"]
+  catalysts: ["OFC展示会", "大手採用発表"]
+  known_codes: []
+
+perovskite:
+  name: "ペロブスカイト太陽電池"
+  keywords: ["ペロブスカイト", "次世代太陽電池", "有機太陽電池", "塗布型"]
+  related_sectors: ["電気機器", "化学", "ガラス・土石製品"]
+  catalysts: ["量産開始発表", "変換効率記録更新"]
+  known_codes: []
+
+space:
+  name: "宇宙"
+  keywords: ["宇宙", "衛星", "ロケット", "スペースデブリ", "測位"]
+  related_sectors: ["電気機器", "輸送用機器", "情報・通信業"]
+  catalysts: ["打ち上げ成功", "政府宇宙基本計画"]
+  known_codes: []
+
+defense:
+  name: "防衛"
+  keywords: ["防衛", "ミサイル", "レーダー", "サイバーセキュリティ", "装甲"]
+  related_sectors: ["電気機器", "輸送用機器", "機械"]
+  catalysts: ["防衛予算決定", "装備品調達発表"]
+  known_codes: []
+
+biotech:
+  name: "バイオテクノロジー"
+  keywords: ["バイオ", "抗体", "遺伝子治療", "細胞治療", "mRNA", "CRISPR", "CAR-T", "ADC"]
+  related_sectors: ["医薬品"]
+  catalysts: ["ASCO", "ASH", "AACR", "FDA承認", "PMDA承認"]
+  known_codes: ["4572", "4565", "4563"]
+
+quantum:
+  name: "量子コンピュータ"
+  keywords: ["量子コンピュータ", "量子", "超伝導", "量子暗号", "量子アニーリング"]
+  related_sectors: ["電気機器", "情報・通信業"]
+  catalysts: ["量子超越達成", "商用化発表"]
+  known_codes: []
+
+ev_battery:
+  name: "EV・全固体電池"
+  keywords: ["全固体電池", "リチウム", "EV", "電池", "充電", "正極材", "負極材", "電解質"]
+  related_sectors: ["電気機器", "化学", "自動車"]
+  catalysts: ["量産発表", "大手採用", "航続距離記録"]
+  known_codes: []
+
+reshoring:
+  name: "国内回帰・経済安保"
+  keywords: ["経済安保", "サプライチェーン", "国内回帰", "半導体工場", "TSMC熊本"]
+  related_sectors: ["建設業", "機械", "電気機器"]
+  catalysts: ["政府補助金発表", "工場建設決定"]
+  known_codes: []

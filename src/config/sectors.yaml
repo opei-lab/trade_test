@@ -1,0 +1,83 @@
+# 業種別バリュエーション基準
+# 各業種で「何を見るべきか」と「割安/割高の閾値」が異なる
+# yfinanceのsector/industry名でマッチング
+
+healthcare:
+  match: ["医薬品", "Healthcare", "Biotechnology", "Drug"]
+  primary_metric: pipeline  # パイプラインの市場規模 vs 時価総額
+  notes: "PERは無意味（赤字が普通）。パイプラインの対象市場規模が全て"
+  blockbuster_threshold: 1000  # 年商$1B(億円)超 = ブロックバスター
+  typical_per: null  # 適用外
+  valuation_approach: "target_market_size / market_cap"
+
+technology:
+  match: ["情報・通信業", "Technology", "Software", "SaaS", "Communication"]
+  primary_metric: psr  # PSR (Price/Sales Ratio)
+  notes: "高成長なら高PSRが正当化される。売上成長率30%超なら PSR 10x+ も合理的"
+  cheap_psr: 3.0
+  fair_psr: 8.0
+  expensive_psr: 15.0
+  valuation_approach: "psr_vs_growth_rate"
+
+semiconductor:
+  match: ["半導体", "Semiconductor", "Electronic"]
+  primary_metric: normalized_per  # サイクル正規化PER
+  notes: "シクリカル。ピークPERは誤解を招く。サイクル平均利益でPERを計算"
+  cycle_years: 5
+  cheap_per: 10
+  fair_per: 18
+  expensive_per: 30
+  valuation_approach: "cycle_normalized_per"
+
+manufacturing:
+  match: ["機械", "Manufacturing", "Industrial", "電気機器"]
+  primary_metric: pbr  # PBR (Price/Book Ratio)
+  notes: "資産ベース。PBR 1.0未満 = 解散価値割れ"
+  cheap_pbr: 0.8
+  fair_pbr: 1.2
+  expensive_pbr: 2.5
+  valuation_approach: "pbr_and_roe"
+
+finance:
+  match: ["銀行業", "保険業", "証券", "Finance", "Banking", "Insurance"]
+  primary_metric: pbr
+  notes: "PBRとROEの相関が強い。ROE8%超でPBR1.0超が目安"
+  cheap_pbr: 0.5
+  fair_pbr: 0.8
+  expensive_pbr: 1.5
+  roe_threshold: 8.0
+  valuation_approach: "pbr_roe_correlation"
+
+retail:
+  match: ["小売業", "食料品", "Retail", "Consumer", "Food"]
+  primary_metric: per  # PER
+  notes: "安定成長。PER 15-25xが標準帯"
+  cheap_per: 12
+  fair_per: 18
+  expensive_per: 28
+  valuation_approach: "per_standard"
+
+infrastructure:
+  match: ["電気・ガス業", "陸運業", "Utilities", "Infrastructure"]
+  primary_metric: dividend_yield
+  notes: "安定配当。配当利回り重視。ボラティリティは低い"
+  high_yield: 4.0
+  fair_yield: 2.5
+  low_yield: 1.5
+  valuation_approach: "dividend_yield"
+
+real_estate:
+  match: ["不動産業", "Real Estate", "REIT"]
+  primary_metric: nav  # NAV (Net Asset Value)
+  notes: "NAV倍率が基本。1.0未満 = 純資産割れ"
+  cheap_nav: 0.7
+  fair_nav: 1.0
+  expensive_nav: 1.5
+  valuation_approach: "nav_discount"
+
+default:
+  primary_metric: per
+  cheap_per: 10
+  fair_per: 15
+  expensive_per: 25
+  valuation_approach: "per_standard"
