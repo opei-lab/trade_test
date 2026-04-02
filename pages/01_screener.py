@@ -193,20 +193,17 @@ if cached:
     new_candidates = [r for r in cached if r.get("code") not in watch_codes]
 
     if new_candidates:
-        # 勝ちパターン合致のみ上位表示、それ以外は折りたたみ
-        best = [r for r in new_candidates if r.get("is_best_pattern") or r.get("is_good_pattern")]
-        others = [r for r in new_candidates if r not in best]
+        # 確度順（Stage 2でソート済み）。上位10件を表示、残りは折りたたみ
+        top_n = new_candidates[:10]
+        others = new_candidates[10:]
 
         st.markdown("---")
         ts = cache_info.get("timestamp", "")[:16].replace("T", " ") if cache_info else ""
-        st.markdown(f"## 新しい候補（{len(best)}件 / {len(new_candidates)}件中）")
+        st.markdown(f"## 新しい候補（上位{len(top_n)}件 / {len(new_candidates)}件）")
         if ts:
-            st.caption(f"{ts} のスキャン結果")
+            st.caption(f"{ts} のスキャン結果 · 確度順")
 
-        if not best:
-            st.info("勝ちパターンに合致する銘柄は現在ありません。下の「その他」に候補があります。")
-
-        for r in best:
+        for r in top_n:
             conv = r.get("conviction", {}) if isinstance(r.get("conviction"), dict) else {}
             grade = conv.get("grade", "?")
             stars_n = {"S": 5, "A": 4, "B": 3, "C": 2, "D": 1}.get(grade, 1)
@@ -234,12 +231,21 @@ if cached:
                 c3.metric("売り", f"¥{target:,}", f"+{reward:.0f}%")
                 c4.metric("損切", f"¥{stop:,}")
                 st.caption(why)
+                # シナリオ（1行要約）
+                scenario_text = r.get("scenario_text", "")
+                if scenario_text:
+                    st.caption(scenario_text[:100])
             with col2:
                 if st.button("ウォッチ", key=f"watch_{r['code']}"):
                     add_from_screening(r)
                     st.rerun()
 
             with st.expander(f"詳細レポート"):
+                # 市場構造レポート（需給・しこり・大口・売りライン・損切りライン）
+                struct_report = r.get("structure_report", "")
+                if struct_report:
+                    st.markdown(struct_report)
+                    st.markdown("---")
                 st.markdown(generate_report(r))
 
         if others:

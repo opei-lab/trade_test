@@ -411,27 +411,26 @@ def screen_stocks(
             trade["risk_pct"] = 20
             trade["risk_reward"] = trade["reward_pct"] / 20 if trade["reward_pct"] > 0 else 0
 
-            # === フィルタ ===
+            # === Stage 1 足切り（不適格を除外するだけ。確度判定はStage 2）===
             vol_anom = supply.get("volume_anomaly", 1)
             squeeze = supply.get("squeeze", 0)
             divergence = supply.get("divergence", 0)
             supply_score = supply.get("total", 0)
 
-            # 底値圏
-            if price_position > 20:
+            # 底値圏でない → 除外
+            if price_position > 25:
                 continue
-            # リターンとRR
-            if trade["reward_pct"] < 30:
+            # 最低限のリターンがない → 除外
+            if trade["reward_pct"] < 20:
                 continue
-            if trade["risk_reward"] < 2:
+            if trade["risk_reward"] < 1.5:
                 continue
-            # 需給条件を3つ以上同時に（signals>=4で勝率75%）
-            signals = 0
-            if vol_anom >= 1.2: signals += 1   # 出来高変化
-            if squeeze > 50: signals += 1      # ボラ収縮
-            if divergence > 20: signals += 1   # 売り枯れ
-            if supply_score > 40: signals += 1 # 需給スコア高
-            if signals < 3:
+            # 値動きの気配が全くない → 除外
+            has_any_signal = (vol_anom >= 1.1 or squeeze > 40 or divergence > 10 or supply_score > 30)
+            if not has_any_signal:
+                continue
+            # Phase E（売り抜け後）→ 除外
+            if phase.get("phase") == "E":
                 continue
 
             # 勝ちパターンフラグ

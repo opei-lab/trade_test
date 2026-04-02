@@ -16,6 +16,8 @@ from src.analysis.resistance import calc_ceiling_score, detect_volume_vacuum
 from src.analysis.sector_strength import calc_relative_strength
 from src.analysis.whale_detection import detect_whale_accumulation
 from src.analysis.whale_plan import reconstruct_whale_plan
+from src.analysis.market_structure import analyze_full_structure, format_structure_report
+from src.analysis.scenario import build_scenario
 from src.analysis.stage_change import detect_financial_stage_change, format_stage_summary
 from src.analysis.event_proximity import find_upcoming_events, calc_event_proximity_score
 from src.analysis.timing import calc_timing_score
@@ -107,6 +109,31 @@ def deep_analyze(candidate: dict) -> dict:
     result["event_proximity_score"] = event_prox["score"]
     result["event_description"] = event_prox.get("description", "")
     result["upcoming_events"] = events[:3]
+
+    # --- 市場構造分析 ---
+    try:
+        df_struct = fetch_price(code, period_days=365)
+        if df_struct is not None and not df_struct.empty:
+            structure = analyze_full_structure(df_struct)
+            result["structure"] = structure
+            result["structure_score"] = structure.get("structure_score", 0)
+            result["structure_report"] = format_structure_report(structure, result.get("current_price", 0))
+
+            # 構造分析からの具体的な値
+            result["safe_sell"] = structure.get("safe_sell", {}).get("safe_sell", 0)
+            result["optimal_stop"] = structure.get("stop_loss", {}).get("stop_price", 0)
+            result["days_to_sell"] = structure.get("safe_sell", {}).get("days_to_sell", 0)
+
+            # 構造分析の損切り/売りラインをtradeに反映
+            if result.get("optimal_stop") and result["optimal_stop"] > 0:
+                result["stop_loss"] = result["optimal_stop"]
+            if result.get("safe_sell") and result["safe_sell"] > 0:
+                result["target"] = result["safe_sell"]
+                if result.get("entry", 0) > 0:
+                    result["reward_pct"] = (result["safe_sell"] - result["entry"]) / result["entry"] * 100
+                    result["risk_reward"] = result["reward_pct"] / ((result["entry"] - result["stop_loss"]) / result["entry"] * 100) if result["stop_loss"] > 0 else 0
+    except Exception:
+        pass
 
     # --- セクター相対強弱 ---
     try:
@@ -210,6 +237,21 @@ def deep_analyze(candidate: dict) -> dict:
                 result["staged_targets"] = staged
     except Exception:
         pass
+
+    # --- Stage 3: シナリオ構築（IR/ニュースからストーリーを作る） ---
+    try:
+        scenario = build_scenario(
+            code, result.get("name", code), result.get("current_price", 0),
+            structure=result.get("structure"),
+        )
+        result["scenario"] = scenario
+        result["has_story"] = scenario.get("has_story", False)
+        result["impact_score"] = scenario.get("impact_score", 0)
+        result["scenario_text"] = scenario.get("scenario", "")
+        result["ir_summary"] = scenario.get("ir_summary", [])
+    except Exception:
+        result["has_story"] = True  # エラー時は除外しない
+        result["impact_score"] = 0
 
     # --- 確度（全情報統合後に判定） ---
     result["conviction"] = calc_conviction(result)
@@ -344,5 +386,8 @@ def run_deep_analysis(candidates: list[dict], progress_callback=None) -> list[di
 
     results.sort(key=sort_key, reverse=True)
 
-    # 全件返す（確度はUIで表示。フィルタで落とさない）
-    return results
+    # Stage 3フィルタ: ストーリーがない銘柄を除外
+    with_story = [r for r in results if r.get("has_story", True)]
+    without_story = [r for r in results if not r.get("has_story", True)]
+
+    return with_story
