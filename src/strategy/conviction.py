@@ -113,14 +113,26 @@ CONVICTION_CHECKS = [
         "check": lambda ctx: ctx.get("ceiling_score", 100) < 30 or ctx.get("has_vacuum", False),
     },
 
-    # === 信用（アルゴ・市場構造） ===
+    # === 信用（上値圧力の有無） ===
     {
         "id": "margin_favorable",
         "name": "信用良好",
-        "weight": 3,
+        "weight": 4,
         "category": "信用",
         "description": "信用倍率3倍未満で上値の重しなし",
         "check": lambda ctx: 0 < ctx.get("margin_ratio", 0) < 3 or ctx.get("margin_ratio", 0) == 0,
+    },
+    {
+        "id": "margin_heavy",
+        "name": "信用圧力なし",
+        "weight": 5,
+        "category": "信用",
+        "description": "信用倍率5倍超 or 買残増加+解消20日超でない（アルゴに狩られる需給構造がない）",
+        "check": lambda ctx: not (
+            ctx.get("margin_ratio", 0) > 5
+            or (ctx.get("margin_ratio", 0) > 3 and ctx.get("margin_buy_change", 0) > 0)
+            or ctx.get("margin_days_to_unwind", 0) > 20
+        ),
     },
 
     # === タイミング（買った直後から上がるかどうかの鍵） ===
@@ -186,6 +198,7 @@ def calc_conviction(result: dict) -> dict:
         "ceiling_score": result.get("ceiling_score", 50),
         "margin_ratio": result.get("margin_ratio", 0),
         "margin_buy_change": result.get("margin_buy_change", 0),
+        "margin_days_to_unwind": result.get("margin_days_to_unwind", 0),
         "max_downside_pct": result.get("max_downside_pct", 50),
         "asymmetry": result.get("asymmetry", 0),
         "market_cap": result.get("market_cap", 0),

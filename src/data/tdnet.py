@@ -4,6 +4,8 @@ IR・適時開示情報を取得する。
 決算発表、業績修正、提携、ワラント等の開示を検出。
 """
 
+import time
+
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -12,42 +14,94 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 }
 
+# 市場全体記事のノイズパターン（銘柄固有でないニュースを除外）
+_NOISE_PATTERNS = [
+    "本日の【", "均衡表", "ゴールデンクロス", "デッドクロス",
+    "上抜け／下抜け", "3役好転", "3役逆転",
+    "GC＝", "DC＝", "好転＝", "逆転＝",
+]
 
-def fetch_recent_disclosures(code: str, max_items: int = 20) -> list[dict]:
+
+def fetch_recent_disclosures(
+    code: str, max_items: int = 20, max_pages: int = 2,
+) -> list[dict]:
     """銘柄の直近の適時開示を取得する。
 
-    株探のIRページから取得する。
+    株探のIRページ（適時開示カテゴリ）と全ニュースから取得する。
 
     Returns:
         [{"date": str, "title": str, "category": str}]
     """
-    url = f"https://kabutan.jp/stock/news?code={code}&category=1"
+    urls = [
+        f"https://kabutan.jp/stock/news?code={code}&category=1",
+        f"https://kabutan.jp/stock/news?code={code}",
+    ]
+    disclosures: list[dict] = []
+    seen_titles: set[str] = set()
+
+    for base_url in urls:
+        for page in range(1, max_pages + 1):
+            if len(disclosures) >= max_items:
+                break
+            url = base_url if page == 1 else f"{base_url}&page={page}"
+            page_results = _fetch_disclosure_page(url)
+            for item in page_results:
+                if item["title"] in seen_titles:
+                    continue
+                seen_titles.add(item["title"])
+                disclosures.append(item)
+                if len(disclosures) >= max_items:
+                    break
+            if not page_results:
+                break
+            if page < max_pages:
+                time.sleep(0.5)
+        if len(disclosures) >= max_items:
+            break
+
+    return disclosures
+
+
+def _fetch_disclosure_page(url: str) -> list[dict]:
+    """株探の1ページ分の開示情報を取得する。"""
     try:
         resp = requests.get(url, headers=HEADERS, timeout=10)
         resp.encoding = "utf-8"
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        disclosures = []
-        table = soup.find("table", class_="stock_news_table")
+        table = (soup.find("table", class_="s_news_list")
+                 or soup.find("table", class_="stock_news_table"))
         if not table:
             return []
 
+        results: list[dict] = []
         rows = table.find_all("tr")
-        for row in rows[:max_items]:
+        for row in rows:
             cells = row.find_all("td")
-            if len(cells) >= 2:
+            if len(cells) >= 3:
                 date_text = cells[0].get_text(strip=True)
-                title = cells[1].get_text(strip=True)
+                link = cells[2].find("a")
+                title = link.get_text(strip=True) if link else cells[2].get_text(strip=True)
+            elif len(cells) >= 2:
+                date_text = cells[0].get_text(strip=True)
+                link = cells[1].find("a")
+                title = link.get_text(strip=True) if link else cells[1].get_text(strip=True)
+            else:
+                continue
 
-                # カテゴリ判定
-                category = classify_disclosure(title)
-                disclosures.append({
-                    "date": date_text,
-                    "title": title,
-                    "category": category,
-                })
+            if not title:
+                continue
+            if any(noise in title for noise in _NOISE_PATTERNS):
+                continue
 
-        return disclosures
+            category = classify_disclosure(title)
+            results.append({
+                "date": date_text,
+                "title": title,
+                "category": category,
+            })
+
+        return results
     except Exception:
         return []
 

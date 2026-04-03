@@ -11,9 +11,7 @@ Stage 2: 本モジュール（外部データ統合、遅い）→ 5銘柄に厳
 from datetime import date, timedelta
 from src.data.price import fetch_price, get_stock_info
 from src.data.margin import fetch_margin_data
-from src.data.tdnet import detect_dilution_risk, detect_positive_catalysts
 from src.analysis.resistance import calc_ceiling_score, detect_volume_vacuum
-from src.analysis.sector_strength import calc_relative_strength
 from src.analysis.whale_detection import detect_whale_accumulation, detect_algo_phase
 from src.analysis.whale_plan import reconstruct_whale_plan
 from src.analysis.market_structure import analyze_full_structure, format_structure_report
@@ -32,6 +30,7 @@ def deep_analyze(candidate: dict) -> dict:
     """Stage 1の候補を深層分析する。
 
     外部データを取得し、確度判定・期間推定・レポート材料を追加する。
+    HTTPリクエストは最小限に抑える（株価1回、ニュース/開示はbuild_scenarioで1回ずつ）。
     """
     code = candidate["code"]
     result = dict(candidate)  # Stage 1の結果をベースに
@@ -49,22 +48,53 @@ def deep_analyze(candidate: dict) -> dict:
             result["has_story"] = False
             result["skip_reason"] = f"時価総額{mcap/1e8:,.0f}億円。大型すぎて動きにくい"
             return result
+
+        shares = info.get("shares_outstanding", 0)
+        current_price = result.get("current_price", 0)
+        old_target = result.get("target", 0)
+
+        if shares > 0 and current_price > 0 and old_target > current_price:
+            current_mcap = mcap if mcap > 0 else current_price * shares
+            target_mcap = old_target * shares
+            mcap_multiple = target_mcap / current_mcap if current_mcap > 0 else 0
+            result["target_mcap"] = round(target_mcap / 1e8)
+            result["target_mcap_multiple"] = round(mcap_multiple, 1)
+            result["target_note"] = f"目標到達時の時価総額: {round(target_mcap/1e8)}億円（現在の{mcap_multiple:.1f}倍）"
+    except Exception:
+        pass
+
+    # --- 株価データ（1回だけ取得して全分析で使い回す） ---
+    df = None
+    try:
+        df = fetch_price(code, period_days=365)
+        if df is not None and df.empty:
+            df = None
     except Exception:
         pass
 
     # --- 信用残 ---
     margin_data = {}
     try:
+        from src.data.margin import calc_margin_pressure
         margin_data = fetch_margin_data(code)
         result["margin_ratio"] = margin_data.get("margin_ratio", 0)
         result["margin_buy_change"] = margin_data.get("margin_buy_change", 0)
+        result["margin_is_heavy"] = margin_data.get("is_heavy", False)
+        result["margin_heaviness"] = margin_data.get("heaviness_reason", "")
+
+        # 信用圧力（買残 vs 出来高。解消日数が長い = アルゴに狩られやすい）
+        if df is not None and not df.empty:
+            vol_avg = float(df["Volume"].tail(20).mean())
+            pressure = calc_margin_pressure(margin_data, result.get("current_price", 0), vol_avg)
+            result["margin_pressure"] = pressure.get("pressure_score", 0)
+            result["margin_days_to_unwind"] = pressure.get("days_to_unwind", 0)
+            result["margin_squeeze_potential"] = pressure.get("squeeze_potential", 0)
     except Exception:
         pass
 
     # --- しこり + 真空地帯 ---
-    try:
-        df = fetch_price(code, period_days=365)
-        if not df.empty:
+    if df is not None:
+        try:
             ceiling = calc_ceiling_score(df, margin_data)
             result["ceiling_score"] = ceiling.get("ceiling_score", 0)
             result["overhead_pct"] = ceiling.get("overhead_supply", {}).get("total_overhead_pct", 0)
@@ -72,8 +102,8 @@ def deep_analyze(candidate: dict) -> dict:
             vacuum = detect_volume_vacuum(df)
             result["has_vacuum"] = vacuum.get("has_vacuum", False)
             result["vacuum_desc"] = vacuum.get("description", "")
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # --- ステージ変化（ファンダメンタル） ---
     stage = {}
@@ -87,24 +117,45 @@ def deep_analyze(candidate: dict) -> dict:
     except Exception:
         pass
 
-    # --- ニュース分析（LLMまたはキーワード） ---
+    # --- Stage 3: シナリオ構築（ニュース/開示を1回だけ取得） ---
+    # build_scenarioがニュース・開示を取得し、結果を返す。
+    # 他の分析はこの結果を再利用する（重複HTTPリクエストなし）。
+    scenario = {}
     try:
-        news_result = analyze_news_for_stage_change(code)
+        scenario = build_scenario(
+            code, result.get("name", code), result.get("current_price", 0),
+            structure=result.get("structure"),
+            df=df,
+        )
+        result["scenario"] = scenario
+        result["has_story"] = scenario.get("has_story", False)
+        result["impact_score"] = scenario.get("impact_score", 0)
+        result["scenario_text"] = scenario.get("scenario", "")
+        result["ir_summary"] = scenario.get("ir_summary", [])
+    except Exception:
+        result["has_story"] = True
+        result["impact_score"] = 0
+
+    # === 早期打ち切り: ストーリーなし or 希薄化リスク → 残りの重い処理をスキップ ===
+    if not result.get("has_story", True):
+        result["skip_reason"] = "ストーリーなし（IR/ニュースに特色がない）"
+        return result
+
+    dilution_data = scenario.get("_dilution", {})
+    if dilution_data.get("has_risk"):
+        result["dilution_risk_count"] = result.get("dilution_risk_count", 0) + len(dilution_data.get("details", []))
+        result.setdefault("risk_factors", []).append("直近のワラント/増資IR検出")
+
+    positive_ir = scenario.get("_positive_catalysts", [])
+    if positive_ir:
+        result["positive_catalysts"] = [d["title"] for d in positive_ir[:3]]
+
+    # --- ニュース分析（build_scenarioの取得済みデータを再利用） ---
+    try:
+        prefetched_news = scenario.get("_news", [])
+        news_result = analyze_news_for_stage_change(code, news=prefetched_news or None)
         result["news"] = news_result.get("news", [])
         result["news_signals"] = news_result.get("stage_signals", [])
-    except Exception:
-        pass
-
-    # --- IR開示（希薄化リスク + ポジティブカタリスト） ---
-    try:
-        dilution = detect_dilution_risk(code)
-        if dilution.get("has_risk"):
-            result["dilution_risk_count"] = result.get("dilution_risk_count", 0) + len(dilution.get("details", []))
-            result.setdefault("risk_factors", []).append("直近のワラント/増資IR検出")
-
-        positive_ir = detect_positive_catalysts(code)
-        if positive_ir:
-            result["positive_catalysts"] = [d["title"] for d in positive_ir[:3]]
     except Exception:
         pass
 
@@ -118,20 +169,17 @@ def deep_analyze(candidate: dict) -> dict:
     result["upcoming_events"] = events[:3]
 
     # --- 市場構造分析 ---
-    try:
-        df_struct = fetch_price(code, period_days=365)
-        if df_struct is not None and not df_struct.empty:
-            structure = analyze_full_structure(df_struct)
+    if df is not None:
+        try:
+            structure = analyze_full_structure(df)
             result["structure"] = structure
             result["structure_score"] = structure.get("structure_score", 0)
             result["structure_report"] = format_structure_report(structure, result.get("current_price", 0))
 
-            # 構造分析からの具体的な値
             result["safe_sell"] = structure.get("safe_sell", {}).get("safe_sell", 0)
             result["optimal_stop"] = structure.get("stop_loss", {}).get("stop_price", 0)
             result["days_to_sell"] = structure.get("safe_sell", {}).get("days_to_sell", 0)
 
-            # 構造分析の損切り/売りラインをtradeに反映
             if result.get("optimal_stop") and result["optimal_stop"] > 0:
                 result["stop_loss"] = result["optimal_stop"]
             if result.get("safe_sell") and result["safe_sell"] > 0:
@@ -139,35 +187,18 @@ def deep_analyze(candidate: dict) -> dict:
                 if result.get("entry", 0) > 0:
                     result["reward_pct"] = (result["safe_sell"] - result["entry"]) / result["entry"] * 100
                     result["risk_reward"] = result["reward_pct"] / ((result["entry"] - result["stop_loss"]) / result["entry"] * 100) if result["stop_loss"] > 0 else 0
-    except Exception:
-        pass
-
-    # --- セクター相対強弱 ---
-    try:
-        from src.data.stocklist import get_stocks_by_sector as _gsbs
-        # セクターキーワードを抽出
-        sector_kw = sector.split("・")[0] if sector else industry.split(" ")[0] if industry else ""
-        if sector_kw:
-            rel_strength = calc_relative_strength(code, sector_kw)
-            result["sector_rank"] = rel_strength.get("relative_rank", 0)
-            result["sector_percentile"] = rel_strength.get("percentile", 50)
-            result["sector_description"] = rel_strength.get("description", "")
-            result["is_sector_leader"] = rel_strength.get("is_sector_leader", False)
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # --- アルゴフェーズ + 大口検出 ---
-    try:
-        df = fetch_price(code, period_days=365)
-        if not df.empty:
-            # アルゴの参入状態
+    if df is not None:
+        try:
             algo_phase = detect_algo_phase(df)
             result["algo_phase"] = algo_phase.get("phase", "unknown")
             result["algo_description"] = algo_phase.get("description", "")
             result["algo_opportunity"] = algo_phase.get("opportunity", "unknown")
 
-            # アルゴが活発な銘柄は除外（高値掴みリスク）
-            if algo_phase.get("opportunity") == "dangerous":
+            if algo_phase.get("phase") == "algo_exiting":
                 result["has_story"] = False
                 result["skip_reason"] = algo_phase["description"]
                 return result
@@ -179,31 +210,28 @@ def deep_analyze(candidate: dict) -> dict:
             result["institutional_detected"] = whale.get("institutional", {}).get("detected", False)
             result["institutional_signals"] = whale.get("institutional", {}).get("signals", [])
 
-            # 大口の売買計画を逆算
             whale_plan = reconstruct_whale_plan(df, info)
             result["whale_plan"] = whale_plan
             result["whale_plan_detected"] = whale_plan.get("detected", False)
             result["whale_plan_description"] = whale_plan.get("description", "")
             result["whale_phase"] = whale_plan.get("remaining", {}).get("phase", "none")
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # --- 直近シグナル ---
-    try:
-        df = fetch_price(code, period_days=365)
-        if not df.empty:
+    if df is not None:
+        try:
             timing_result = calc_timing_score(df)
             result["timing_score"] = timing_result["timing_score"]
             result["urgency"] = timing_result["urgency"]
             result["timing_signals"] = timing_result["signals"]
             result["timing_desc"] = timing_result["description"]
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # --- 安全性 ---
-    try:
-        df = fetch_price(code, period_days=365)
-        if not df.empty:
+    if df is not None:
+        try:
             manip = is_pure_manipulation(df, info)
             result["safety_score"] = manip["safety_score"]
             result["risk_factors"] = result.get("risk_factors", []) + manip.get("risk_factors", [])
@@ -216,8 +244,8 @@ def deep_analyze(candidate: dict) -> dict:
                 result.get("reward_pct", 0),
                 floor.get("max_downside_pct", result.get("risk_pct", 10)),
             )
-    except Exception:
-        pass
+        except Exception:
+            pass
 
     # --- 段階トレードプラン ---
     try:
@@ -235,11 +263,17 @@ def deep_analyze(candidate: dict) -> dict:
     is_bio = any(kw in f"{sector} {industry}".lower() for kw in ["healthcare", "biotech", "医薬品", "drug"])
     try:
         if is_bio and info.get("market_cap", 0) > 0:
+            # パイプラインフェーズをシナリオ検出結果から取得
+            _pipeline = result.get("pipeline", {})
+            _phase_map = {"Phase 1": "phase1", "Phase 2": "phase2", "Phase 3": "phase3",
+                          "Preclinical": "preclinical", "Clinical": "phase1"}
+            _detected_phase = _pipeline.get("highest_phase", "")
+            _bio_phase = _phase_map.get(_detected_phase, "phase2")
             staged = calc_staged_targets_bio(
                 current_price=result.get("current_price", 0),
                 market_cap=info.get("market_cap", 0),
                 target_market_size=1e12,
-                current_phase="phase2",
+                current_phase=_bio_phase,
             )
             result["staged_targets"] = staged
         else:
@@ -394,14 +428,14 @@ def run_deep_analysis(candidates: list[dict], progress_callback=None) -> list[di
         except Exception:
             results.append(c)
 
-    # ソート: 出口可視性 × 確度 × 非対称リターン × 低位株ボーナス
+    # ソート: ストーリー確度 × 出口可視性 × 利益幅 × 低位株ボーナス
     def sort_key(x):
         clarity = x.get("expectation", {}).get("timeline_clarity", 0) if isinstance(x.get("expectation"), dict) else 0
         conv = x.get("conviction", {}).get("conviction_score", 0) if isinstance(x.get("conviction"), dict) else 0
-        ev = x.get("expectation", {}).get("expected_return_pct", 0) if isinstance(x.get("expectation"), dict) else 0
+        reward = min(x.get("reward_pct", 0), 300)  # 利益幅（上限300%で頭打ち。外れ値抑制）
         price = x.get("current_price", 9999)
         low_price_bonus = 20 if 0 < price < 500 else 10 if price < 1000 else 0
-        return clarity * 10 + conv * 5 + ev + low_price_bonus
+        return conv * 8 + clarity * 5 + reward * 0.5 + low_price_bonus
 
     results.sort(key=sort_key, reverse=True)
 

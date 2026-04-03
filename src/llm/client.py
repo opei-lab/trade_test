@@ -40,7 +40,7 @@ def generate(prompt: str, model: str = DEFAULT_MODEL, temperature: float = 0.3) 
                 "stream": False,
                 "options": {"temperature": temperature},
             },
-            timeout=120,
+            timeout=30,
         )
         if resp.status_code == 200:
             return resp.json().get("response")

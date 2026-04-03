@@ -61,10 +61,12 @@ def fetch_margin_data(code: str) -> dict:
         resp.encoding = "utf-8"
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        # 信用残テーブルを探す
+        # 信用残テーブルを探す（2つのパターン）
         tables = soup.find_all("table")
         for table in tables:
             text = table.get_text()
+
+            # パターン1: 信用買残/売残の詳細テーブル
             if "信用買残" in text or "信用売残" in text:
                 rows = table.find_all("tr")
                 for row in rows:
@@ -84,6 +86,16 @@ def fetch_margin_data(code: str) -> dict:
                         elif "信用倍率" in label or "貸借倍率" in label:
                             result["margin_ratio"] = _parse_number(value)
                 break
+
+            # パターン2: PER/PBR/利回り/信用倍率テーブル（kabutan現行構造）
+            if "信用倍率" in text and result["margin_ratio"] == 0:
+                rows = table.find_all("tr")
+                if len(rows) >= 2:
+                    headers = [c.get_text(strip=True) for c in rows[0].find_all(["td", "th"])]
+                    values = [c.get_text(strip=True) for c in rows[1].find_all(["td", "th"])]
+                    for h, v in zip(headers, values):
+                        if "信用倍率" in h or "貸借倍率" in h:
+                            result["margin_ratio"] = _parse_number(v)
 
         # 倍率が取れなかった場合、手動計算
         if result["margin_ratio"] == 0 and result["margin_sell"] > 0:

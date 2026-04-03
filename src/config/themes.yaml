@@ -1,73 +1,447 @@
-# テーマ辞書
-# 各テーマに関連するキーワードとセクター/銘柄を定義
-# ニュース・IRのスキャンに使用
+# テーマ辞書（自動更新 + 手動定義）
+# 最終更新: 2026-04-03 10:10
+# manual: true のテーマは自動更新で上書きされない
+# auto: true のテーマはランキングから自動生成
 
 ai_power:
-  name: "AI電力・データセンター"
-  keywords: ["データセンター", "AI電力", "GPU冷却", "液浸冷却", "電力需要", "CAPEX", "サーバー", "HPC"]
-  related_sectors: ["電気・ガス業", "電気機器", "情報・通信業"]
-  catalysts: ["大手テックのCAPEX発表", "NVIDIA決算", "データセンター新設発表"]
-  known_codes: ["3133", "9519", "6366"]
-
+  name: AI電力・データセンター
+  keywords:
+  - データセンター
+  - AI電力
+  - GPU冷却
+  - 液浸冷却
+  - 電力需要
+  - CAPEX
+  - サーバー
+  - HPC
+  related_sectors:
+  - 電気・ガス業
+  - 電気機器
+  - 情報・通信業
+  catalysts:
+  - 大手テックのCAPEX発表
+  - NVIDIA決算
+  - データセンター新設発表
+  known_codes:
+  - '3133'
+  - '9519'
+  - '6366'
+  manual: true
 nuclear_fusion:
-  name: "核融合"
-  keywords: ["核融合", "プラズマ", "レーザー核融合", "トカマク", "ITER", "ヘリカル"]
-  related_sectors: ["電気機器", "機械"]
-  catalysts: ["IAEA会議", "実験成果発表", "政府予算"]
+  name: 核融合
+  keywords:
+  - 核融合
+  - プラズマ
+  - レーザー核融合
+  - トカマク
+  - ITER
+  - ヘリカル
+  related_sectors:
+  - 電気機器
+  - 機械
+  catalysts:
+  - IAEA会議
+  - 実験成果発表
+  - 政府予算
   known_codes: []
-
+  manual: true
 optical_semiconductor:
-  name: "光半導体・フォトニクス"
-  keywords: ["光半導体", "フォトニクス", "シリコンフォトニクス", "光配線", "光トランシーバ", "光インターコネクト"]
-  related_sectors: ["電気機器", "半導体"]
-  catalysts: ["OFC展示会", "大手採用発表"]
+  name: 光半導体・フォトニクス
+  keywords:
+  - 光半導体
+  - フォトニクス
+  - シリコンフォトニクス
+  - 光配線
+  - 光トランシーバ
+  - 光インターコネクト
+  related_sectors:
+  - 電気機器
+  - 半導体
+  catalysts:
+  - OFC展示会
+  - 大手採用発表
   known_codes: []
-
+  manual: true
 perovskite:
-  name: "ペロブスカイト太陽電池"
-  keywords: ["ペロブスカイト", "次世代太陽電池", "有機太陽電池", "塗布型"]
-  related_sectors: ["電気機器", "化学", "ガラス・土石製品"]
-  catalysts: ["量産開始発表", "変換効率記録更新"]
+  name: ペロブスカイト太陽電池
+  keywords:
+  - ペロブスカイト
+  - 次世代太陽電池
+  - 有機太陽電池
+  - 塗布型
+  related_sectors:
+  - 電気機器
+  - 化学
+  - ガラス・土石製品
+  catalysts:
+  - 量産開始発表
+  - 変換効率記録更新
   known_codes: []
-
+  manual: true
 space:
-  name: "宇宙"
-  keywords: ["宇宙", "衛星", "ロケット", "スペースデブリ", "測位"]
-  related_sectors: ["電気機器", "輸送用機器", "情報・通信業"]
-  catalysts: ["打ち上げ成功", "政府宇宙基本計画"]
+  name: 宇宙
+  keywords:
+  - 宇宙
+  - 衛星
+  - ロケット
+  - スペースデブリ
+  - 測位
+  related_sectors:
+  - 電気機器
+  - 輸送用機器
+  - 情報・通信業
+  catalysts:
+  - 打ち上げ成功
+  - 政府宇宙基本計画
   known_codes: []
-
+  manual: true
 defense:
-  name: "防衛"
-  keywords: ["防衛", "ミサイル", "レーダー", "サイバーセキュリティ", "装甲"]
-  related_sectors: ["電気機器", "輸送用機器", "機械"]
-  catalysts: ["防衛予算決定", "装備品調達発表"]
+  name: 防衛
+  keywords:
+  - 防衛
+  - ミサイル
+  - レーダー
+  - サイバーセキュリティ
+  - 装甲
+  related_sectors:
+  - 電気機器
+  - 輸送用機器
+  - 機械
+  catalysts:
+  - 防衛予算決定
+  - 装備品調達発表
   known_codes: []
-
+  manual: true
 biotech:
-  name: "バイオテクノロジー"
-  keywords: ["バイオ", "抗体", "遺伝子治療", "細胞治療", "mRNA", "CRISPR", "CAR-T", "ADC"]
-  related_sectors: ["医薬品"]
-  catalysts: ["ASCO", "ASH", "AACR", "FDA承認", "PMDA承認"]
-  known_codes: ["4572", "4565", "4563"]
-
+  name: バイオテクノロジー
+  keywords:
+  - バイオ
+  - 抗体
+  - 遺伝子治療
+  - 細胞治療
+  - mRNA
+  - CRISPR
+  - CAR-T
+  - ADC
+  related_sectors:
+  - 医薬品
+  catalysts:
+  - ASCO
+  - ASH
+  - AACR
+  - FDA承認
+  - PMDA承認
+  known_codes:
+  - '4572'
+  - '4565'
+  - '4563'
+  manual: true
 quantum:
-  name: "量子コンピュータ"
-  keywords: ["量子コンピュータ", "量子", "超伝導", "量子暗号", "量子アニーリング"]
-  related_sectors: ["電気機器", "情報・通信業"]
-  catalysts: ["量子超越達成", "商用化発表"]
+  name: 量子コンピュータ
+  keywords:
+  - 量子コンピュータ
+  - 量子
+  - 超伝導
+  - 量子暗号
+  - 量子アニーリング
+  related_sectors:
+  - 電気機器
+  - 情報・通信業
+  catalysts:
+  - 量子超越達成
+  - 商用化発表
   known_codes: []
-
+  manual: true
 ev_battery:
-  name: "EV・全固体電池"
-  keywords: ["全固体電池", "リチウム", "EV", "電池", "充電", "正極材", "負極材", "電解質"]
-  related_sectors: ["電気機器", "化学", "自動車"]
-  catalysts: ["量産発表", "大手採用", "航続距離記録"]
+  name: EV・全固体電池
+  keywords:
+  - 全固体電池
+  - リチウム
+  - EV
+  - 電池
+  - 充電
+  - 正極材
+  - 負極材
+  - 電解質
+  related_sectors:
+  - 電気機器
+  - 化学
+  - 自動車
+  catalysts:
+  - 量産発表
+  - 大手採用
+  - 航続距離記録
   known_codes: []
-
+  manual: true
 reshoring:
-  name: "国内回帰・経済安保"
-  keywords: ["経済安保", "サプライチェーン", "国内回帰", "半導体工場", "TSMC熊本"]
-  related_sectors: ["建設業", "機械", "電気機器"]
-  catalysts: ["政府補助金発表", "工場建設決定"]
+  name: 国内回帰・経済安保
+  keywords:
+  - 経済安保
+  - サプライチェーン
+  - 国内回帰
+  - 半導体工場
+  - TSMC熊本
+  related_sectors:
+  - 建設業
+  - 機械
+  - 電気機器
+  catalysts:
+  - 政府補助金発表
+  - 工場建設決定
   known_codes: []
+  manual: true
+省エネ空調:
+  name: 省エネ空調
+  keywords:
+  - 省エネ空調
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '6367'
+  - '6503'
+  - '1952'
+  - '1979'
+  - '6223'
+  - '1723'
+  - '1736'
+  - '1770'
+  - '1777'
+  - '1904'
+  - '1930'
+  - '1959'
+  - '1960'
+  - '1961'
+  - '1965'
+  auto: true
+  source: rise
+  rank: 1
+  updated: '2026-04-03'
+専門商社:
+  name: 専門商社
+  keywords:
+  - 専門商社
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '2692'
+  - '3132'
+  - '8012'
+  - '9830'
+  - '9962'
+  - '2750'
+  - '7128'
+  - '7472'
+  - '8151'
+  - '8154'
+  - '8226'
+  - '2760'
+  - '7537'
+  - '8051'
+  - '8088'
+  auto: true
+  source: rise
+  rank: 2
+  updated: '2026-04-03'
+保険:
+  name: 保険
+  keywords:
+  - 保険
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '7326'
+  - '8630'
+  - '8725'
+  - '8750'
+  - '8766'
+  - '7181'
+  - '7157'
+  - '7325'
+  - '7343'
+  - '7388'
+  - '8715'
+  - '8729'
+  - '8795'
+  - '8798'
+  - '8473'
+  auto: true
+  source: rise
+  rank: 3
+  updated: '2026-04-03'
+医療機器:
+  name: 医療機器
+  keywords:
+  - 医療機器
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '7575'
+  - '7634'
+  - '7747'
+  - '7775'
+  - '6823'
+  - '6960'
+  - '7702'
+  - '7716'
+  - '7730'
+  - '7733'
+  - '7745'
+  - '7751'
+  - '7792'
+  - '9265'
+  - '4543'
+  auto: true
+  source: rise
+  rank: 4
+  updated: '2026-04-03'
+半導体部材_部品:
+  name: 半導体部材・部品
+  keywords:
+  - 半導体部材・部品
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '4063'
+  - '3436'
+  - '4186'
+  - '4188'
+  - '5384'
+  - '4062'
+  - '5019'
+  - '1514'
+  - '1518'
+  - '2802'
+  - '2962'
+  - '3103'
+  - '3104'
+  - '3110'
+  - '3204'
+  auto: true
+  source: rise
+  rank: 5
+  updated: '2026-04-03'
+都市鉱山:
+  name: 都市鉱山
+  keywords:
+  - 都市鉱山
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '5857'
+  - '7456'
+  - '5714'
+  - '1491'
+  - '3036'
+  - '3556'
+  - '4092'
+  - '5020'
+  - '5411'
+  - '5480'
+  - '5563'
+  - '5698'
+  - '5699'
+  - '5706'
+  - '5707'
+  auto: true
+  source: rise
+  rank: 6
+  updated: '2026-04-03'
+金利上昇メリット:
+  name: 金利上昇メリット
+  keywords:
+  - 金利上昇メリット
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 7
+  updated: '2026-04-03'
+自動運転車:
+  name: 自動運転車
+  keywords:
+  - 自動運転車
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 8
+  updated: '2026-04-03'
+中国関連:
+  name: 中国関連
+  keywords:
+  - 中国関連
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 9
+  updated: '2026-04-03'
+サイバーセキュリティ:
+  name: サイバーセキュリティ
+  keywords:
+  - サイバーセキュリティ
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 10
+  updated: '2026-04-03'
+バイオ航空燃料:
+  name: バイオ航空燃料
+  keywords:
+  - バイオ航空燃料
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 11
+  updated: '2026-04-03'
+生成ai:
+  name: 生成AI
+  keywords:
+  - 生成AI
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 12
+  updated: '2026-04-03'
+ビジネスホテル:
+  name: ビジネスホテル
+  keywords:
+  - ビジネスホテル
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 13
+  updated: '2026-04-03'
+全固体電池:
+  name: 全固体電池
+  keywords:
+  - 全固体電池
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 14
+  updated: '2026-04-03'
+医療_医薬品:
+  name: 医療・医薬品
+  keywords:
+  - 医療・医薬品
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 15
+  updated: '2026-04-03'

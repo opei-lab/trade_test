@@ -366,20 +366,23 @@ def screen_stocks(
     min_score: float = 40,
     progress_callback=None,
 ) -> list[dict]:
-    """銘柄リストを2段階でスクリーニングする。
+    """5段階フィルタで段階的に間引く。軽い判定から順に。
 
-    Stage 1: 高速フィルタ（株価・出来高のみ。外部API呼ばない）
-      → 需給スコア + Phase + エントリー/ターゲット で大まかに絞る
-
-    Stage 2: 詳細分析（信用残・ステージ変化等の外部データ取得）
-      → Stage 1を通過した銘柄のみ。確度判定 + レポート生成
+    Stage 1: 環境（499→150）— 価格・流動性・データ量
+    Stage 2: 構造（150→50）— しこり・真空・上値余地・Phase
+    Stage 3: 需給（50→30）— 売り枯れ・出来高トレンド・底固め
+    Stage 4: 動意（30→10）— 出来高点火・タイミング・大口兆候
+    → 上位10件をStage 5（情報分析=deep_analyze）に送る
     """
-    candidates = []  # Stage 1の通過銘柄
-    results = []
+    import logging
     processed = set()
     total = len(codes)
 
-    # === Stage 1: 高速フィルタ ===
+    # ============================================================
+    # Stage 1: 環境フィルタ（全銘柄に適用。超高速）
+    # 「そもそも売買可能か」を判定。ボラではなく流動性で切る
+    # ============================================================
+    stage1 = []
     for i, code in enumerate(codes):
         if progress_callback:
             progress_callback(i, total, code)
@@ -393,50 +396,86 @@ def screen_stocks(
             if df.empty or len(df) < 60:
                 continue
 
-            # === Stage 1: 株価データだけで高速フィルタ ===
-            info = {}  # Stage 1ではAPI呼び出ししない。空dictで参照エラー防止
+            current = float(df["Close"].iloc[-1])
 
+            # 価格上限（低資金で触れる範囲）
+            if current > 5000:
+                continue
+
+            # 流動性チェック（約定できるか・出られるか）
+            avg_volume_20d = float(df["Volume"].tail(20).mean())
+            avg_turnover = avg_volume_20d * current  # 1日平均売買代金
+            if avg_volume_20d < 1000:  # 1日1000株未満 = 約定しない
+                continue
+            if avg_turnover < 1_000_000:  # 1日100万円未満 = 出られない
+                continue
+
+            stage1.append({"code": code, "df": df, "current": current,
+                            "avg_volume": avg_volume_20d, "avg_turnover": avg_turnover})
+        except Exception:
+            continue
+
+    logging.info(f"Stage 1 環境: {total}→{len(stage1)}")
+
+    # ============================================================
+    # Stage 2: 構造フィルタ（「上がれる構造か」）
+    # しこり・真空・Phase・上値余地を判定
+    # ============================================================
+    stage2 = []
+    for item in stage1:
+        code = item["code"]
+        df = item["df"]
+        current = item["current"]
+
+        try:
+            info = {}
             supply = calc_supply_score(df)
             phase = detect_phase(df)
             trade = calc_entry_exit(df, supply, phase)
             price_levels = find_price_targets(df)
 
-            current = float(df["Close"].iloc[-1])
-            # ボラは直近6ヶ月で見る（全期間だと昔の急騰が残って緩くなる）
-            recent_6m = df.tail(min(120, len(df)))
-            recent_high = float(recent_6m["Close"].max())
-            recent_low = float(recent_6m["Close"].min())
-            historical_range = recent_high / max(recent_low, 1)
             price_position = supply.get("price_position", 50)
 
-            # 損切り-20%
-            trade["stop_loss"] = round(trade["entry"] * 0.80)
-            trade["risk_pct"] = 20
-            trade["risk_reward"] = trade["reward_pct"] / 20 if trade["reward_pct"] > 0 else 0
-
-            # === Stage 1: 準備万端の銘柄だけ通す ===
-
+            # フェーズE（売り崩し後）は即除外
             if phase.get("phase") == "E":
                 continue
 
-            # 損切り-15%
+            # 損切り-15%固定
             trade["stop_loss"] = round(trade["entry"] * 0.85)
             trade["risk_pct"] = 15
             trade["risk_reward"] = trade["reward_pct"] / 15 if trade["reward_pct"] > 0 else 0
 
-            # ルートA: 既存銘柄（過去高値がある）
-            #   上値+50%以上、底値15%以下、RR3以上
-            # ルートB: 新規/青天井（過去高値が現在値に近い）
-            #   時価総額が小さく、底値圏で、過去高値の制約を受けない
-            historical_high = price_levels.get("historical_high", current)
-            upside_to_high = (historical_high - current) / current * 100 if current > 0 else 0
+            # 上値の重さ・真空地帯
+            _ceil = calc_ceiling_score(df)
+            _ceiling_score = _ceil.get("ceiling_score", 50)
+            _vac = detect_volume_vacuum(df)
 
-            is_route_a = (trade["reward_pct"] >= 50 and price_position <= 15 and trade["risk_reward"] >= 3)
-            is_route_b = (price_position <= 10 and upside_to_high < 30 and current < 500)
-            # ルートB: 過去高値が近い（青天井候補）+ 超低位 + 深底値
-
-            if not is_route_a and not is_route_b:
+            # しこりが最悪（直近高値圏に出来高密集）→ 除外
+            if _ceiling_score >= 70:
                 continue
+
+            # 安値切り上げ（底固め進行中か）
+            _higher_lows = False
+            if len(df) >= 60:
+                _lows = df["Low"].tail(60)
+                _q1_low = float(_lows.iloc[:20].min())
+                _q2_low = float(_lows.iloc[20:40].min())
+                _q3_low = float(_lows.iloc[40:].min())
+                _higher_lows = _q1_low <= _q2_low <= _q3_low
+
+            # 構造的に上がれる余地があるか
+            has_upside = (
+                trade["reward_pct"] >= 30  # 最低30%の上値余地
+                or _vac.get("has_vacuum", False)  # 真空地帯がある
+                or (price_position <= 15 and current < 500)  # 超低位の深底値
+            )
+            if not has_upside:
+                continue
+
+            # ヒストリカルレンジ
+            recent_6m = df.tail(min(120, len(df)))
+            historical_range = float(recent_6m["Close"].max()) / max(float(recent_6m["Close"].min()), 1)
+            historical_high = price_levels.get("historical_high", current)
 
             # 勝ちパターンフラグ
             is_best_pattern = (price_position < 15 and historical_range >= 3)
@@ -444,20 +483,29 @@ def screen_stocks(
 
             floor = calc_downside_floor(df, {})
             asymmetry = calc_asymmetry_score(trade["reward_pct"], floor.get("max_downside_pct", 20))
+            _overhead_pct = _ceil.get("overhead_supply", {}).get("total_overhead_pct", 0)
+            _has_vacuum = _vac.get("has_vacuum", False)
+            _vacuum_width = _vac.get("vacuum_width_pct", 0)
 
-            reason = build_reason(supply, phase, trade, {})
+            # 出来高トレンド
+            _volume_trend = 1.0
+            if len(df) >= 40:
+                _vol_recent = float(df["Volume"].tail(20).mean())
+                _vol_prev = float(df["Volume"].iloc[-40:-20].mean())
+                _volume_trend = _vol_recent / _vol_prev if _vol_prev > 0 else 1.0
 
-            results.append({
+            stage2.append({
                 "code": code,
-                "name": info.get("name", ""),
+                "df": df,
                 "current_price": current,
+                "name": "",
                 "is_best_pattern": is_best_pattern,
                 "is_good_pattern": is_good_pattern,
                 "historical_range": round(historical_range, 1),
                 "ret_3d": round((current - float(df["Close"].iloc[-4])) / float(df["Close"].iloc[-4]) * 100, 1) if len(df) >= 4 else 0,
                 "supply_score": supply.get("total", 0),
-                "float_scarcity": 0,  # Stage 2で更新
-                "market_cap": 0,  # Stage 2で更新
+                "float_scarcity": 0,
+                "market_cap": 0,
                 "phase": phase.get("phase", "NONE"),
                 "phase_confidence": phase.get("confidence", 0),
                 "phase_desc": phase.get("description", ""),
@@ -469,25 +517,27 @@ def screen_stocks(
                 "risk_reward": trade["risk_reward"],
                 "multiplier": trade.get("multiplier", 0),
                 "timing": trade["timing"],
-                "reason": reason,
                 "is_bottom": supply.get("is_bottom", False),
                 "volume_anomaly": supply.get("volume_anomaly", 0),
                 "squeeze": supply.get("squeeze", 0),
-                "safety_score": 50,  # Stage 2で更新
+                "safety_score": 50,
                 "floor_price": floor.get("floor_price", 0),
                 "max_downside_pct": floor.get("max_downside_pct", 0),
                 "asymmetry": asymmetry,
                 "risk_factors": [],
-                "ceiling_score": 50,
+                "ceiling_score": _ceiling_score,
                 "margin_ratio": 0,
-                "overhead_pct": 0,
+                "overhead_pct": _overhead_pct,
                 "margin_buy_change": 0,
                 "price_position": supply.get("price_position", 50),
                 "divergence": supply.get("divergence", 0),
                 "accumulation": supply.get("accumulation", 0),
-                "ml_win_prob": None,  # Stage 2で更新
-                "has_vacuum": False,
-                "vacuum_desc": "",
+                "ml_win_prob": None,
+                "has_vacuum": _has_vacuum,
+                "vacuum_desc": _vac.get("description", ""),
+                "vacuum_width_pct": _vacuum_width,
+                "volume_trend": round(_volume_trend, 2),
+                "higher_lows": _higher_lows,
                 "stage_score": 0,
                 "stage_changes": [],
                 "stage_risks": [],
@@ -495,82 +545,182 @@ def screen_stocks(
                 "dilution_risk_count": 0,
                 "stage_summary": "",
             })
-
-            # イベント接近検出
-            ev_sector = info.get("sector", "")
-            ev_industry = info.get("industry", "")
-            events = find_upcoming_events(ev_sector, ev_industry)
-            event_prox = calc_event_proximity_score(events)
-            results[-1]["event_proximity_score"] = event_prox["score"]
-            results[-1]["event_description"] = event_prox.get("description", "")
-            results[-1]["upcoming_events"] = events[:3]
-
-            # タイミング（直近で動くか）判定
-            timing_result = calc_timing_score(df)
-            results[-1]["timing_score"] = timing_result["timing_score"]
-            results[-1]["urgency"] = timing_result["urgency"]
-            results[-1]["timing_signals"] = timing_result["signals"]
-            results[-1]["timing_desc"] = timing_result["description"]
-
-            # 段階目標 + トレードプラン生成
-            sector = info.get("sector", "")
-            industry = info.get("industry", "")
-            is_bio = any(kw in f"{sector} {industry}".lower() for kw in ["healthcare", "biotech", "医薬品", "drug"])
-
-            # 複数回売買トレードプラン
-            trade_plan = generate_multi_trade_plan(
-                current_price=current,
-                market_cap=info.get("market_cap", 0),
-                sector=sector,
-                industry=industry,
-            )
-            results[-1]["trade_plan"] = trade_plan
-
-            if is_bio and info.get("market_cap", 0) > 0:
-                # バイオ: パイプライン価値ベース
-                # 対象市場規模は仮で1兆円（後でIR/LLMから取得予定）
-                staged = calc_staged_targets_bio(
-                    current_price=current,
-                    market_cap=info.get("market_cap", 0),
-                    target_market_size=1e12,
-                    current_phase="phase2",
-                )
-                results[-1]["staged_targets"] = staged
-            else:
-                # 一般銘柄: 過去高値ベース
-                staged = calc_staged_targets_generic(
-                    current_price=current,
-                    historical_high=price_levels["historical_high"],
-                    prev_highs=price_levels.get("prev_highs", []),
-                    stage_score=0,  # Stage 2で更新
-                )
-                results[-1]["staged_targets"] = staged
-
-            # 確度（コンビクション）判定
-            results[-1]["conviction"] = calc_conviction(results[-1])
-            results[-1]["conviction_grade"] = results[-1]["conviction"]["grade"]
-            results[-1]["conviction_count"] = results[-1]["conviction"]["conviction_count"]
-
-        except Exception as _e:
-            import logging, traceback
-            tb = traceback.format_exc()
-            logging.warning(f"screener: {code} failed: {tb}")
-            if len([r for r in results if r.get("error")]) < 3:
-                results.append({"code": code, "name": f"Error: {type(_e).__name__}: {_e}", "current_price": 0, "error": True, "traceback": tb})
+        except Exception:
             continue
 
-    # エラー銘柄を分離
-    errors = [r for r in results if r.get("error")]
-    valid = [r for r in results if not r.get("error")]
+    logging.info(f"Stage 2 構造: {len(stage1)}→{len(stage2)}")
 
-    # ソート
-    timing_bonus = {"NOW": 3, "NEAR": 2, "WAIT": 1}
-    valid.sort(
-        key=lambda x: (
-            x.get("reward_pct", 0) * 10
-            + timing_bonus.get(x.get("timing", "WAIT"), 1) * 50
-        ),
-        reverse=True,
-    )
+    # ============================================================
+    # Stage 3: 需給フィルタ（「需給が味方しているか」）
+    # 売り枯れ・出来高トレンド・底固め・非対称性で足切り
+    # ============================================================
+    stage3 = []
+    for r in stage2:
+        # 出来高トレンドが完全に死んでる → 誰も見てない
+        if r.get("volume_trend", 1.0) < 0.5:
+            continue
+        # 下値が深すぎる（底が見えない）
+        if r.get("max_downside_pct", 30) > 50:
+            continue
+        # 需給スコアが最低限（バックテストで有意差なしのゾーンは除外）
+        if r.get("supply_score", 0) < 20:
+            continue
+        # 上値余地が最低15%（手数料考慮すると15%未満は旨みなし）
+        if r.get("reward_pct", 0) < 15:
+            continue
+        stage3.append(r)
 
-    return valid + errors
+    # 需給スコア上位50件に絞る（ファンダ+信用チェックの件数を抑える）
+    stage3.sort(key=lambda x: x.get("supply_score", 0), reverse=True)
+    stage3 = stage3[:50]
+
+    logging.info(f"Stage 3 需給: {len(stage2)}→{len(stage3)}")
+
+    # ============================================================
+    # Stage 4: ファンダ割安判定（「今の価格は妥当か」）
+    # PBR/PER/時価総額から割安度を判定。高すぎは除外
+    # ============================================================
+    from src.analysis.funda_score import calc_funda_score, calc_margin_score
+
+    stage4 = []
+    for r in stage3:
+        code = r["code"]
+        try:
+            info = get_stock_info(code)
+            r["name"] = info.get("name") or r.get("name", code)
+            r["market_cap"] = info.get("market_cap", 0)
+            sector = info.get("sector", "")
+            industry = info.get("industry", "")
+            r["sector"] = sector
+            r["industry"] = industry
+
+            # 大型株は除外
+            if info.get("market_cap", 0) > 100e9:
+                continue
+
+            # 信用倍率（需給の一部。致命的なら即除外）
+            margin = fetch_margin_data(code)
+            ms = calc_margin_score(margin.get("margin_ratio", 0))
+            r["margin_ratio"] = ms["margin_ratio"]
+            r["margin_score"] = ms["margin_score"]
+            r["margin_reason"] = ms["margin_reason"]
+            r["margin_buy_change"] = margin.get("margin_buy_change", 0)
+
+            if ms["is_fatal"]:  # 信用5-10倍 = 勝率10%。即除外
+                continue
+
+            # ファンダ評価（セクター別適正値。独立スコア0-100）
+            fs = calc_funda_score(info, sector)
+            r["funda_score"] = fs["funda_score"]
+            r["funda_reasons"] = fs["funda_reasons"]
+            r["pbr"] = fs["pbr"]
+            r["per"] = fs["per"]
+        except Exception:
+            r["funda_score"] = 0
+            r["margin_score"] = 50
+
+        stage4.append(r)
+
+    logging.info(f"Stage 4 ファンダ: {len(stage3)}→{len(stage4)}")
+
+    # ============================================================
+    # Stage 5: 動意フィルタ（「動き始めてるか」）
+    # タイミングシグナル・大口兆候・売り枯れ度でスコアリング
+    # ============================================================
+    for r in stage4:
+        df = r.get("df")
+        try:
+            # タイミング
+            timing_result = calc_timing_score(df)
+            r["timing_score"] = timing_result["timing_score"]
+            r["urgency"] = timing_result["urgency"]
+            r["timing_signals"] = timing_result["signals"]
+            r["timing_desc"] = timing_result["description"]
+
+            # イベント接近
+            events = find_upcoming_events("", "")
+            event_prox = calc_event_proximity_score(events)
+            r["event_proximity_score"] = event_prox["score"]
+            r["event_description"] = event_prox.get("description", "")
+            r["upcoming_events"] = events[:3]
+
+            # 理由テキスト
+            r["reason"] = build_reason(
+                {"is_bottom": r["is_bottom"], "volume_anomaly": r["volume_anomaly"],
+                 "squeeze": r["squeeze"], "divergence": r["divergence"]},
+                {"phase": r["phase"]},
+                r, {},
+            )
+
+            # 確度（Stage 1時点。Stage 2で再計算）
+            r["conviction"] = calc_conviction(r)
+            r["conviction_grade"] = r["conviction"]["grade"]
+            r["conviction_count"] = r["conviction"]["conviction_count"]
+        except Exception:
+            r["timing_score"] = 0
+            r["urgency"] = "watching"
+            r["timing_signals"] = []
+            r["timing_desc"] = ""
+
+    # === 動意スコアでソート ===
+    # バックテスト結果: divergence（売り枯れ）+ vol_ignition（出来高点火）+ vacuum（真空）が有効
+    def calc_motion_score(r):
+        score = 0
+
+        # 売り枯れ度（バックテストで最も差が出た指標）
+        div = r.get("divergence", 0)
+        if div > 20:
+            score += 30
+        elif div > 0:
+            score += 15
+
+        # 出来高点火
+        if r.get("timing_score", 0) >= 25:
+            score += 25
+        vol_anom = r.get("volume_anomaly", 1)
+        if 1.3 <= vol_anom <= 3:
+            score += 15
+
+        # 真空地帯（一気抜けの余地）
+        if r.get("has_vacuum"):
+            score += 20
+
+        # 安値切り上げ（底固め）
+        if r.get("higher_lows"):
+            score += 15
+
+        # フェーズ（大口仕込み兆候）
+        phase = r.get("phase", "NONE")
+        score += {"A": 25, "B": 15, "C": 20, "D": 5, "NONE": 0}.get(phase, 0)
+
+        # 上値の軽さ
+        ceiling = r.get("ceiling_score", 50)
+        if ceiling < 30:
+            score += 15
+        elif ceiling >= 55:
+            score -= 10
+
+        # 非対称性（上値>下値）
+        if r.get("asymmetry", 0) > 70:
+            score += 10
+
+        # ファンダ割安ボーナス
+        score += r.get("funda_score", 0)
+
+        return score
+
+    for r in stage4:
+        r["motion_score"] = calc_motion_score(r)
+
+    stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
+
+    # 上位10件をStage 6（情報分析）に送る
+    stage5 = stage4[:10]
+
+    # dfを除外（JSONシリアライズ不可）
+    for r in stage5:
+        r.pop("df", None)
+
+    logging.info(f"Stage 5 動意: {len(stage4)}→{len(stage5)}")
+
+    return stage5

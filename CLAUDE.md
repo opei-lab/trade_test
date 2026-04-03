@@ -46,7 +46,14 @@ docker-compose up -d
 
 ## Project Overview
 
-Stock screening system: supply-demand analysis, manipulation pattern detection, theme momentum monitor, trade simulation. Local execution (Docker ready). No API keys. Simulation only (no real trading).
+グロース市場に絞り、低価格帯かつボラティリティの高い銘柄に厳選するスクリーニングシステム。下値が限定的で上値が大きい非対称リターン構造の銘柄をメインに、IR・需給・テーマ・大口の動きなど直近のあらゆるシグナルを検知し、高確度で約定に貢献する。
+
+- Target: Growth market, <¥5,000, 60-day range >30%
+- Filter: Bottom zone × volume dry-up × upside >50% × RR >3x
+- Analysis: IR/TDnet, sector win patterns, theme maturity, whale detection, algo phase
+- Operation: Fully automated watchlist (add/track/remove). No manual intervention
+- Exit: Take profit at catalyst (licensing/commercialization). Sell all if goal unclear (relay strategy)
+- Local execution (Docker ready). No API keys. Simulation only (no real trading).
 
 ## Architecture
 

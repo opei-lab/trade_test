@@ -141,11 +141,9 @@ def render_header():
     with st.sidebar:
         st.markdown("""
         <div style="padding:4px 0 8px;border-bottom:1px solid #2A2F3E;margin-bottom:8px">
-            <a href="/" target="_self" style="color:#E0E0E0;text-decoration:none;font-weight:700;font-size:1.1em">📊 Stock Screener</a>
+            <span style="color:#E0E0E0;font-weight:700;font-size:1.1em">📊 Stock Screener</span>
         </div>
         """, unsafe_allow_html=True)
-        st.page_link("pages/01_screener.py", label="おすすめ銘柄", icon="🔍")
-        st.page_link("pages/02_analysis.py", label="銘柄を調べる", icon="📈")
 
         # ウォッチリストの注視銘柄をサイドバーに表示
         try:
