@@ -136,6 +136,23 @@ def deep_analyze(candidate: dict) -> dict:
         result["has_story"] = True
         result["impact_score"] = 0
 
+    # --- IR独立スコア（尖ってると高い。まぁまぁは低い）---
+    try:
+        from src.analysis.ir_score import calc_ir_score
+        ir_eval = calc_ir_score(
+            scenario.get("_news", []),
+            scenario.get("_disclosures", []),
+            scenario,
+        )
+        result["ir_score"] = ir_eval["ir_score"]
+        result["ir_grade"] = ir_eval["ir_grade"]
+        result["ir_reasons"] = ir_eval["ir_reasons"]
+        result["ir_negative"] = ir_eval["ir_negative"]
+        result["ir_freshness"] = ir_eval["freshness"]
+    except Exception:
+        result["ir_score"] = 0
+        result["ir_grade"] = "D"
+
     # === 早期打ち切り: ストーリーなし or 希薄化リスク → 残りの重い処理をスキップ ===
     if not result.get("has_story", True):
         result["skip_reason"] = "ストーリーなし（IR/ニュースに特色がない）"

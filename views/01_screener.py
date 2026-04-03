@@ -242,7 +242,31 @@ if cached:
             c3.metric("売り", f"¥{target:,}", f"+{reward:.0f}%")
             c4.metric("損切", f"¥{stop:,}")
 
-            st.caption(f"根拠: {why}")
+            # スコアカード（各軸独立評価）
+            supply_s = r.get("supply_score", 0)
+            margin_s = r.get("margin_score", 50)
+            funda_s = r.get("funda_score", 0)
+            ir_s = r.get("ir_score", 0)
+            ir_g = r.get("ir_grade", "?")
+
+            def _bar(val, max_val=100):
+                filled = int(val / max_val * 5)
+                return "█" * filled + "░" * (5 - filled)
+
+            st.caption(
+                f"需給{_bar(supply_s)}{supply_s} "
+                f"信用{_bar(margin_s)}{margin_s} "
+                f"ファンダ{_bar(funda_s)}{funda_s} "
+                f"IR{_bar(ir_s)}{ir_s}({ir_g})"
+            )
+
+            # IR理由（尖ってれば表示）
+            ir_reasons = r.get("ir_reasons", [])
+            if ir_reasons:
+                st.caption(f"IR: {' / '.join(ir_reasons[:3])}")
+            ir_neg = r.get("ir_negative", [])
+            if ir_neg:
+                st.caption(f"⚠ {' / '.join(ir_neg[:2])}")
 
             scenario_text = r.get("scenario_text", "")
             if scenario_text:
