@@ -60,6 +60,17 @@ def deep_analyze(candidate: dict) -> dict:
             result["target_mcap"] = round(target_mcap / 1e8)
             result["target_mcap_multiple"] = round(mcap_multiple, 1)
             result["target_note"] = f"目標到達時の時価総額: {round(target_mcap/1e8)}億円（現在の{mcap_multiple:.1f}倍）"
+
+        # ファンダ独立スコア（IR同時評価。切るためではなく評価するため）
+        from src.analysis.funda_score import calc_funda_score
+        sector = info.get("sector", "")
+        fs = calc_funda_score(info, sector)
+        result["funda_score"] = fs["funda_score"]
+        result["funda_reasons"] = fs["funda_reasons"]
+        result["pbr"] = fs["pbr"]
+        result["per"] = fs["per"]
+        result["sector"] = sector
+        result["industry"] = info.get("industry", "")
     except Exception:
         pass
 

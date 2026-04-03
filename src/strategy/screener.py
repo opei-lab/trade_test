@@ -366,21 +366,22 @@ def screen_stocks(
     min_score: float = 40,
     progress_callback=None,
 ) -> list[dict]:
-    """5段階フィルタで段階的に間引く。軽い判定から順に。
+    """6段階フィルタ。確定情報から順に、精度重視で間引く。
 
-    Stage 1: 環境（499→150）— 価格・流動性・データ量
-    Stage 2: 構造（150→50）— しこり・真空・上値余地・Phase
-    Stage 3: 需給（50→30）— 売り枯れ・出来高トレンド・底固め
-    Stage 4: 動意（30→10）— 出来高点火・タイミング・大口兆候
-    → 上位10件をStage 5（情報分析=deep_analyze）に送る
+    Stage 1: 環境（499→~150）— 価格・流動性。即判定
+    Stage 2: 信用（~150→~140）— 致命的な信用倍率だけ除外
+    Stage 3: 構造（~140→~50）— しこり・真空・Phase・上値余地
+    Stage 4: 需給（~50→~30）— 売り枯れ・出来高トレンド
+    Stage 5: 動意（~30→10）— 出来高点火+残り上値余地でスコアリング
+    → 上位10件をStage 6（情報分析: ファンダ+IR同時評価）に送る
     """
     import logging
     processed = set()
     total = len(codes)
 
     # ============================================================
-    # Stage 1: 環境フィルタ（全銘柄に適用。超高速）
-    # 「そもそも売買可能か」を判定。ボラではなく流動性で切る
+    # Stage 1: 環境フィルタ（全銘柄。超高速）
+    # 価格・流動性・データ量。触れない銘柄を除外
     # ============================================================
     stage1 = []
     for i, code in enumerate(codes):
@@ -398,16 +399,14 @@ def screen_stocks(
 
             current = float(df["Close"].iloc[-1])
 
-            # 価格上限（低資金で触れる範囲）
             if current > 5000:
                 continue
 
-            # 流動性チェック（約定できるか・出られるか）
             avg_volume_20d = float(df["Volume"].tail(20).mean())
-            avg_turnover = avg_volume_20d * current  # 1日平均売買代金
-            if avg_volume_20d < 1000:  # 1日1000株未満 = 約定しない
+            avg_turnover = avg_volume_20d * current
+            if avg_volume_20d < 1000:
                 continue
-            if avg_turnover < 1_000_000:  # 1日100万円未満 = 出られない
+            if avg_turnover < 1_000_000:
                 continue
 
             stage1.append({"code": code, "df": df, "current": current,
@@ -419,7 +418,7 @@ def screen_stocks(
 
     # ============================================================
     # Stage 2: 構造フィルタ（「上がれる構造か」）
-    # しこり・真空・Phase・上値余地を判定
+    # しこり・真空・Phase・上値余地。dfのみの計算。高速
     # ============================================================
     stage2 = []
     for item in stage1:
@@ -527,6 +526,8 @@ def screen_stocks(
                 "risk_factors": [],
                 "ceiling_score": _ceiling_score,
                 "margin_ratio": 0,
+                "margin_score": 50,
+                "margin_reason": "",
                 "overhead_pct": _overhead_pct,
                 "margin_buy_change": 0,
                 "price_position": supply.get("price_position", 50),
@@ -552,53 +553,34 @@ def screen_stocks(
 
     # ============================================================
     # Stage 3: 需給フィルタ（「需給が味方しているか」）
-    # 売り枯れ・出来高トレンド・底固め・非対称性で足切り
+    # 確定的にダメなものだけ切る。上位50件に絞る
     # ============================================================
     stage3 = []
     for r in stage2:
-        # 出来高トレンドが完全に死んでる → 誰も見てない
         if r.get("volume_trend", 1.0) < 0.5:
             continue
-        # 下値が深すぎる（底が見えない）
         if r.get("max_downside_pct", 30) > 50:
             continue
-        # 需給スコアが最低限（バックテストで有意差なしのゾーンは除外）
         if r.get("supply_score", 0) < 20:
             continue
-        # 上値余地が最低15%（手数料考慮すると15%未満は旨みなし）
         if r.get("reward_pct", 0) < 15:
             continue
         stage3.append(r)
 
-    # 需給スコア上位50件に絞る（ファンダ+信用チェックの件数を抑える）
     stage3.sort(key=lambda x: x.get("supply_score", 0), reverse=True)
     stage3 = stage3[:50]
 
     logging.info(f"Stage 3 需給: {len(stage2)}→{len(stage3)}")
 
     # ============================================================
-    # Stage 4: ファンダ割安判定（「今の価格は妥当か」）
-    # PBR/PER/時価総額から割安度を判定。高すぎは除外
+    # Stage 4: 信用致命判定（50件だけに適用。5-10倍=勝率10%を除外）
     # ============================================================
-    from src.analysis.funda_score import calc_funda_score, calc_margin_score
+    from src.analysis.funda_score import calc_margin_score
 
     stage4 = []
     for r in stage3:
         code = r["code"]
         try:
-            info = get_stock_info(code)
-            r["name"] = info.get("name") or r.get("name", code)
-            r["market_cap"] = info.get("market_cap", 0)
-            sector = info.get("sector", "")
-            industry = info.get("industry", "")
-            r["sector"] = sector
-            r["industry"] = industry
-
-            # 大型株は除外
-            if info.get("market_cap", 0) > 100e9:
-                continue
-
-            # 信用倍率（需給の一部。致命的なら即除外）
             margin = fetch_margin_data(code)
             ms = calc_margin_score(margin.get("margin_ratio", 0))
             r["margin_ratio"] = ms["margin_ratio"]
@@ -606,26 +588,16 @@ def screen_stocks(
             r["margin_reason"] = ms["margin_reason"]
             r["margin_buy_change"] = margin.get("margin_buy_change", 0)
 
-            if ms["is_fatal"]:  # 信用5-10倍 = 勝率10%。即除外
+            if ms["is_fatal"]:
                 continue
-
-            # ファンダ評価（セクター別適正値。独立スコア0-100）
-            fs = calc_funda_score(info, sector)
-            r["funda_score"] = fs["funda_score"]
-            r["funda_reasons"] = fs["funda_reasons"]
-            r["pbr"] = fs["pbr"]
-            r["per"] = fs["per"]
         except Exception:
-            r["funda_score"] = 0
-            r["margin_score"] = 50
-
+            pass
         stage4.append(r)
 
-    logging.info(f"Stage 4 ファンダ: {len(stage3)}→{len(stage4)}")
+    logging.info(f"Stage 4 信用: {len(stage3)}→{len(stage4)}")
 
     # ============================================================
-    # Stage 5: 動意フィルタ（「動き始めてるか」）
-    # タイミングシグナル・大口兆候・売り枯れ度でスコアリング
+    # Stage 5: 動意スコアリング（「動き始めてるか」+「残り上値余地」）
     # ============================================================
     for r in stage4:
         df = r.get("df")
@@ -712,9 +684,6 @@ def screen_stocks(
         if r.get("asymmetry", 0) > 70:
             score += 10
 
-        # ファンダ割安ボーナス
-        score += r.get("funda_score", 0)
-
         return score
 
     for r in stage4:
@@ -722,7 +691,7 @@ def screen_stocks(
 
     stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
 
-    # 上位10件をStage 6（情報分析）に送る
+    # 上位10件をStage 6（情報分析: ファンダ+IR同時評価）に送る
     stage5 = stage4[:10]
 
     # dfを除外（JSONシリアライズ不可）
@@ -731,4 +700,6 @@ def screen_stocks(
 
     logging.info(f"Stage 5 動意: {len(stage4)}→{len(stage5)}")
 
+    # ファンダはStage 6（deep_analyze）でIRと同時に独立評価
+    # ここでは切らない。スコアカードとして表示するだけ
     return stage5
