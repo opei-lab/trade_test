@@ -674,12 +674,16 @@ def screen_stocks(
         elif div > 0:
             score += 15
 
-        # 出来高点火
-        if r.get("timing_score", 0) >= 25:
-            score += 25
+        # 出来高点火（残り上値余地とセットで評価）
+        reward_remaining = r.get("reward_pct", 0)
         vol_anom = r.get("volume_anomaly", 1)
-        if 1.3 <= vol_anom <= 3:
-            score += 15
+        if r.get("timing_score", 0) >= 25 or (1.3 <= vol_anom <= 3):
+            if reward_remaining >= 50:
+                score += 30  # 動き始め + まだ上値たっぷり
+            elif reward_remaining >= 30:
+                score += 15  # 動き始め + そこそこ余地
+            else:
+                score -= 10  # 動いたけどもう遅い
 
         # 真空地帯（一気抜けの余地）
         if r.get("has_vacuum"):
@@ -689,9 +693,13 @@ def screen_stocks(
         if r.get("higher_lows"):
             score += 15
 
-        # フェーズ（大口仕込み兆候）
+        # フェーズ（大口仕込み兆候。Dは上値余地次第）
         phase = r.get("phase", "NONE")
-        score += {"A": 25, "B": 15, "C": 20, "D": 5, "NONE": 0}.get(phase, 0)
+        if phase == "D":
+            # 急上昇中。上値余地があればまだ乗れる、なければ高値掴み
+            score += 20 if reward_remaining >= 50 else -15
+        else:
+            score += {"A": 25, "B": 15, "C": 20, "NONE": 0}.get(phase, 0)
 
         # 上値の軽さ
         ceiling = r.get("ceiling_score", 50)
