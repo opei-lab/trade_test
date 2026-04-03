@@ -296,7 +296,7 @@ def get_trade_stats() -> dict:
     expected_value = (win_rate / 100 * avg_win) + (loss_rate * avg_loss)
 
     # MFE分析: 目標に近づいたが約定しなかったケース
-    non_wins = [t for t in trades if t["pnl_pct"] < FEE_THRESHOLD]
+    non_wins = [t for t in trades if t["pnl_pct"] < WIN_THRESHOLD]
     near_miss = [t for t in non_wins if t.get("mfe_pct", 0) >= 20]
 
     # 総損益
