@@ -634,60 +634,92 @@ def screen_stocks(
             r["timing_signals"] = []
             r["timing_desc"] = ""
 
-    # === 動意スコアでソート ===
-    # バックテスト結果: divergence（売り枯れ）+ vol_ignition（出来高点火）+ vacuum（真空）が有効
-    def calc_motion_score(r):
+    # === 潜伏スコア: 「まだ見えてないが条件が揃ってる」を評価 ===
+    # バックテスト検証結果:
+    #   効く: 底値位置深い(+23%), 真空(+10%), 上値余地大(+7%)
+    #   効かない: 出来高点火(もう遅い), 安値切上(織り込み済み)
+    from src.analysis.whale_detection import detect_institutional_buying
+
+    def calc_stealth_score(r):
         score = 0
+        df = r.get("df")
 
-        # 売り枯れ度（バックテストで最も差が出た指標）
-        div = r.get("divergence", 0)
-        if div > 20:
-            score += 30
-        elif div > 0:
+        # --- 最重要: 底値位置が深い（バックテスト最大lift +23%）---
+        pp = r.get("price_position", 50)
+        if pp < 10:
+            score += 35   # 深底値 = まだ誰も見てない
+        elif pp < 20:
+            score += 25
+        elif pp < 30:
+            score += 10
+
+        # --- 上値余地（lift +7%）---
+        reward = r.get("reward_pct", 0)
+        if reward >= 80:
+            score += 25
+        elif reward >= 50:
             score += 15
+        elif reward >= 30:
+            score += 5
 
-        # 出来高点火（残り上値余地とセットで評価）
-        reward_remaining = r.get("reward_pct", 0)
-        vol_anom = r.get("volume_anomaly", 1)
-        if r.get("timing_score", 0) >= 25 or (1.3 <= vol_anom <= 3):
-            if reward_remaining >= 50:
-                score += 30  # 動き始め + まだ上値たっぷり
-            elif reward_remaining >= 30:
-                score += 15  # 動き始め + そこそこ余地
-            else:
-                score -= 10  # 動いたけどもう遅い
-
-        # 真空地帯（一気抜けの余地）
+        # --- 真空地帯（lift +10%）---
         if r.get("has_vacuum"):
             score += 20
 
-        # 安値切り上げ（底固め）
-        if r.get("higher_lows"):
-            score += 15
+        # --- 大口の水面下仕込み（CLV+OBV）+ 仕込み進捗 ---
+        if df is not None:
+            try:
+                inst = detect_institutional_buying(df)
+                r["whale_stealth"] = inst.get("detected", False)
+                r["whale_confidence"] = inst.get("confidence", 0)
 
-        # フェーズ（大口仕込み兆候。Dは上値余地次第）
-        phase = r.get("phase", "NONE")
-        if phase == "D":
-            # 急上昇中。上値余地があればまだ乗れる、なければ高値掴み
-            score += 20 if reward_remaining >= 50 else -15
-        else:
-            score += {"A": 25, "B": 15, "C": 20, "NONE": 0}.get(phase, 0)
+                # 仕込み進捗（年単位の仕込みの「今どの段階か」）
+                from src.analysis.whale_plan import reconstruct_whale_plan
+                wp = reconstruct_whale_plan(df, {})
+                whale_phase = wp.get("remaining", {}).get("phase", "none")
+                r["whale_phase"] = whale_phase
 
-        # 上値の軽さ
+                if whale_phase == "holding":
+                    score += 30  # 仕込み完了。次は上げるフェーズ。最高
+                elif whale_phase == "accumulating" and inst.get("detected"):
+                    score += 15  # まだ仕込み中だが大口が入ってる
+                elif whale_phase == "distributing":
+                    score -= 15  # 利確中。もう遅い
+                elif whale_phase == "exited":
+                    score -= 25  # 売り抜け完了。危険
+
+                if inst.get("detected") and whale_phase != "distributing":
+                    score += 15  # 水面下で仕込んでる（利確中でなければ）
+            except Exception:
+                pass
+
+        # --- 上値の軽さ ---
         ceiling = r.get("ceiling_score", 50)
-        if ceiling < 30:
+        if ceiling < 20:
             score += 15
+        elif ceiling < 35:
+            score += 5
         elif ceiling >= 55:
-            score -= 10
+            score -= 15  # しこり重い
 
-        # 非対称性（上値>下値）
-        if r.get("asymmetry", 0) > 70:
-            score += 10
+        # --- Phase（仕込み段階のみ加点。動意が見えるDは減点）---
+        phase = r.get("phase", "NONE")
+        if phase == "A":
+            score += 20   # 静かな仕込み
+        elif phase == "D":
+            score -= 20   # もう動いてる = 遅い
+        elif phase == "C":
+            score += 5    # 振り落とし後
+
+        # --- 出来高点火はペナルティ（みんなに見えてる）---
+        vol_anom = r.get("volume_anomaly", 1)
+        if vol_anom > 3:
+            score -= 10   # 出来高爆発 = もう遅い
 
         return score
 
     for r in stage4:
-        r["motion_score"] = calc_motion_score(r)
+        r["motion_score"] = calc_stealth_score(r)
 
     stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
 
