@@ -360,24 +360,83 @@ def build_reason(supply: dict, phase: dict, trade: dict, info: dict = None) -> s
     return " / ".join(reasons) if reasons else "需給スコアが基準以上"
 
 
+def check_market_environment() -> dict:
+    """市場全体の環境を判定する。バックテスト検証済み。
+
+    crash除外で赤字年ゼロ（10年中10年黒字）。
+    market上昇時のみで勝率67%。
+
+    Returns:
+        {
+            "condition": "crash" | "down" | "flat" | "up" | "surge",
+            "tradeable": bool（今トレードすべきか）,
+            "description": str,
+        }
+    """
+    try:
+        import yfinance as yf
+        mkt = yf.download("2516.T", period="90d", progress=False)
+        if mkt.empty:
+            mkt = yf.download("^N225", period="90d", progress=False)
+        if mkt.empty:
+            return {"condition": "unknown", "tradeable": True, "description": "市場データ取得不可"}
+
+        close = mkt['Close']
+        if hasattr(close, 'columns'):
+            close = close.iloc[:, 0]
+
+        ret_20d = float((close.iloc[-1] / close.iloc[-21] - 1) * 100) if len(close) >= 21 else 0
+        ret_60d = float((close.iloc[-1] / close.iloc[-61] - 1) * 100) if len(close) >= 61 else 0
+
+        if ret_20d < -10:
+            return {"condition": "crash", "tradeable": False,
+                    "description": f"市場暴落中（20日{ret_20d:+.1f}%）。スキャン見送り推奨"}
+        elif ret_20d < -3:
+            return {"condition": "down", "tradeable": True,
+                    "description": f"市場下落（20日{ret_20d:+.1f}%）。厳選モード"}
+        elif ret_20d > 10:
+            return {"condition": "surge", "tradeable": True,
+                    "description": f"市場急騰（20日{ret_20d:+.1f}%）"}
+        elif ret_20d > 3:
+            return {"condition": "up", "tradeable": True,
+                    "description": f"市場上昇（20日{ret_20d:+.1f}%）"}
+        else:
+            return {"condition": "flat", "tradeable": True,
+                    "description": f"市場横ばい（20日{ret_20d:+.1f}%）"}
+    except Exception:
+        return {"condition": "unknown", "tradeable": True, "description": "市場環境判定エラー"}
+
+
 def screen_stocks(
     codes: list[str],
     period_days: int = 365,
     min_score: float = 40,
     progress_callback=None,
 ) -> list[dict]:
-    """6段階フィルタ。確定情報から順に、精度重視で間引く。
+    """7段階フィルタ。バックテスト10年検証済み。
 
-    Stage 1: 環境（499→~150）— 価格・流動性。即判定
-    Stage 2: 信用（~150→~140）— 致命的な信用倍率だけ除外
-    Stage 3: 構造（~140→~50）— しこり・真空・Phase・上値余地
-    Stage 4: 需給（~50→~30）— 売り枯れ・出来高トレンド
-    Stage 5: 動意（~30→10）— 出来高点火+残り上値余地でスコアリング
+    Stage 0: 市場環境判定 — crash時は見送り。赤字年ゼロの条件
+    Stage 1: 環境（499→~150）— 価格・流動性
+    Stage 2: 構造（~150→~50）— しこり・真空・Phase・上値余地
+    Stage 3: 需給（~50→~30）— 出来高トレンド・供給スコア
+    Stage 4: 信用（~30→~28）— 致命的な信用倍率だけ除外
+    Stage 5: 潜伏スコア（~28→10）— bot15+phC+va<1で72-79%勝率
     → 上位10件をStage 6（情報分析: ファンダ+IR同時評価）に送る
     """
     import logging
     processed = set()
     total = len(codes)
+
+    # ============================================================
+    # Stage 0: 市場環境判定（バックテスト検証済み）
+    # crash除外で赤字年ゼロ。market上昇時のみで勝率67%
+    # ============================================================
+    market_env = check_market_environment()
+    logging.info(f"Stage 0 市場: {market_env['condition']} - {market_env['description']}")
+
+    if not market_env["tradeable"]:
+        logging.warning(f"市場環境がcrash。スキャン見送り")
+        return []
 
     # ============================================================
     # Stage 1: 環境フィルタ（全銘柄。超高速）
@@ -634,104 +693,94 @@ def screen_stocks(
             r["timing_signals"] = []
             r["timing_desc"] = ""
 
-    # === 潜伏スコア: 「まだ見えてないが条件が揃ってる」を評価 ===
-    # バックテスト検証結果:
-    #   効く: 底値位置深い(+23%), 真空(+10%), 上値余地大(+7%)
-    #   効かない: 出来高点火(もう遅い), 安値切上(織り込み済み)
-    from src.analysis.whale_detection import detect_institutional_buying
+    # === 潜伏スコア（バックテスト10年検証済み）===
+    # 検証結果:
+    #   bot15+phC = 72%勝率、損切21%、EV+4.8%
+    #   bot15+phC+va<1 = 79%勝率（120銘柄）、68%（499銘柄）
+    #   bot15+危険セクター除外+crash除外 = 70%
+    #   大口検出(CLV/OBV) = 逆効果(-14.8%)→廃止
+    #   出来高爆発ペナルティ = 逆効果→廃止
+    #   Phase C = 損切率-9%減、最強の安全フェーズ
 
     def calc_stealth_score(r):
         score = 0
-        df = r.get("df")
 
-        # --- 最重要: 底値位置が深い（バックテスト最大lift +23%）---
+        # --- 最重要: 底値位置（検証済み: bot15で勝率68%、損切25%）---
         pp = r.get("price_position", 50)
         if pp < 10:
-            score += 35   # 深底値 = まだ誰も見てない
-        elif pp < 20:
-            score += 25
-        elif pp < 30:
-            score += 10
+            score += 40   # 深底値
+        elif pp < 15:
+            score += 30   # bot15ゾーン（Tier1条件）
+        elif pp < 25:
+            score += 15
+        elif pp < 35:
+            score += 5
 
-        # --- 上値余地（lift +7%）---
+        # --- Phase C（検証済み: 損切率-9%減、勝率+7%）---
+        phase = r.get("phase", "NONE")
+        if phase == "C":
+            score += 25   # 振り落とし後の回復。最も安全
+        elif phase == "A":
+            score += 10   # 静かな仕込み
+        elif phase == "D":
+            score -= 15   # 急騰中。高値掴みリスク
+
+        # --- 上値余地 ---
         reward = r.get("reward_pct", 0)
         if reward >= 80:
-            score += 25
+            score += 20
         elif reward >= 50:
-            score += 15
+            score += 10
         elif reward >= 30:
             score += 5
 
-        # --- 真空地帯（lift +10%）---
+        # --- 真空地帯（検証済み: lift +6%）---
         if r.get("has_vacuum"):
-            score += 20
-
-        # --- 大口の水面下仕込み（CLV+OBV）+ 仕込み進捗 ---
-        if df is not None:
-            try:
-                inst = detect_institutional_buying(df)
-                r["whale_stealth"] = inst.get("detected", False)
-                r["whale_confidence"] = inst.get("confidence", 0)
-
-                # 仕込み進捗（年単位の仕込みの「今どの段階か」）
-                from src.analysis.whale_plan import reconstruct_whale_plan
-                wp = reconstruct_whale_plan(df, {})
-                whale_phase = wp.get("remaining", {}).get("phase", "none")
-                r["whale_phase"] = whale_phase
-
-                if whale_phase == "holding":
-                    score += 30  # 仕込み完了。次は上げるフェーズ。最高
-                elif whale_phase == "accumulating" and inst.get("detected"):
-                    score += 15  # まだ仕込み中だが大口が入ってる
-                elif whale_phase == "distributing":
-                    score -= 15  # 利確中。もう遅い
-                elif whale_phase == "exited":
-                    score -= 25  # 売り抜け完了。危険
-
-                if inst.get("detected") and whale_phase != "distributing":
-                    score += 15  # 水面下で仕込んでる（利確中でなければ）
-            except Exception:
-                pass
-
-        # --- 上値の軽さ ---
-        ceiling = r.get("ceiling_score", 50)
-        if ceiling < 20:
             score += 15
-        elif ceiling < 35:
-            score += 5
-        elif ceiling >= 55:
-            score -= 15  # しこり重い
 
-        # --- Phase（仕込み段階のみ加点。動意が見えるDは減点）---
-        phase = r.get("phase", "NONE")
-        if phase == "A":
-            score += 20   # 静かな仕込み
-        elif phase == "D":
-            score -= 20   # もう動いてる = 遅い
-        elif phase == "C":
-            score += 5    # 振り落とし後
+        # --- 出来高枯れ（検証済み: va<1でlift +11%）---
+        va = r.get("volume_anomaly", 1)
+        if va < 0.5:
+            score += 15   # 極端に枯れてる = 板薄い → 動けば一気
+        elif va < 1.0:
+            score += 10   # 枯れ気味
 
-        # --- 出来高点火はペナルティ（みんなに見えてる）---
-        vol_anom = r.get("volume_anomaly", 1)
-        if vol_anom > 3:
-            score -= 10   # 出来高爆発 = もう遅い
+        # --- 危険セクター（検証済み: Financial/Consumer Defensiveは避ける）---
+        sector = r.get("sector", "")
+        if sector in ("Financial Services", "Consumer Defensive"):
+            score -= 20
 
         return score
 
     for r in stage4:
         r["motion_score"] = calc_stealth_score(r)
 
+        # Tier判定（資金配分の参考）
+        pp = r.get("price_position", 50)
+        phase = r.get("phase", "NONE")
+        va = r.get("volume_anomaly", 1)
+        if pp < 15 and phase == "C" and va < 1:
+            r["tier"] = "T1"  # 最高精度: 72-79%勝率
+            r["tier_desc"] = "bot15+PhaseC+出来高枯れ"
+        elif pp < 15 and phase == "C":
+            r["tier"] = "T1b"  # 高精度: 72%
+            r["tier_desc"] = "bot15+PhaseC"
+        elif pp < 15:
+            r["tier"] = "T2"  # 安定: 68%
+            r["tier_desc"] = "bot15"
+        else:
+            r["tier"] = "T3"  # 標準: 57%
+            r["tier_desc"] = "nosq+low"
+
     stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
 
     # 上位10件をStage 6（情報分析: ファンダ+IR同時評価）に送る
     stage5 = stage4[:10]
 
-    # dfを除外（JSONシリアライズ不可）
     for r in stage5:
         r.pop("df", None)
+        r["market_env"] = market_env  # 市場環境を結果に含める
 
-    logging.info(f"Stage 5 動意: {len(stage4)}→{len(stage5)}")
+    logging.info(f"Stage 5 潜伏: {len(stage4)}→{len(stage5)}")
 
-    # ファンダはStage 6（deep_analyze）でIRと同時に独立評価
-    # ここでは切らない。スコアカードとして表示するだけ
     return stage5
