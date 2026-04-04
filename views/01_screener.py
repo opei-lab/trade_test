@@ -265,7 +265,11 @@ if cached:
                     add_from_screening(r, source="manual")
                     st.rerun()
 
-            # === 価格情報 ===
+            # === 価格情報（整合性チェック付き）===
+            # 損切>現在値 or 利確<現在値 = データ異常
+            price_ok = stop < current < target if stop > 0 and target > 0 else True
+            if not price_ok:
+                st.warning(f"⚠ 価格データに異常あり（現在値¥{current:,.0f}に対し損切¥{stop:,}/利確¥{target:,}）。再スキャン推奨")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("現在値", f"¥{current:,.0f}")
             c2.metric("買い指値", f"¥{entry:,}")

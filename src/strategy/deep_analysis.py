@@ -337,6 +337,16 @@ def deep_analyze(candidate: dict) -> dict:
         result["has_story"] = True  # エラー時は除外しない
         result["impact_score"] = 0
 
+    # --- 価格データ整合性チェック ---
+    _cp = result.get("current_price", 0)
+    _sl = result.get("stop_loss", 0)
+    _tg = result.get("target", 0)
+    if _sl > 0 and _tg > 0 and _cp > 0:
+        if _sl >= _cp or _tg <= _cp:
+            result["has_story"] = False
+            result["skip_reason"] = f"価格データ異常（現在¥{_cp:,.0f} 損切¥{_sl:,} 利確¥{_tg:,}）"
+            return result
+
     # --- 確度（全情報統合後に判定） ---
     result["conviction"] = calc_conviction(result)
     result["conviction_grade"] = result["conviction"]["grade"]
