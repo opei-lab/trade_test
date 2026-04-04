@@ -20,29 +20,31 @@ SECTOR_BENCHMARKS = {
     "Technology": {
         "pbr_sweet": (1.5, 4.0),
         "pbr_elite": (1.0, 2.0),
-        "per_sweet": (0, 0.01),     # 赤字の方が勝つ
-        "per_elite_high": 100,      # PER100超=急成長
-        "per_overvalued": None,     # Tech: 割高判定なし。高PERは成長の証
-        "note": "今の利益は無意味。成長投資中の赤字はむしろ良い",
+        "per_sweet": (30, 50),      # 検証結果: PER30-50が最強（50%）
+        "per_overvalued": 80,       # PER80超で20%。致命的
+        "per_dead_if_zero": False,  # Tech赤字は許容
+        "note": "PER30-50が最強。80超は割高。赤字は成長投資として許容",
     },
     "Communication Services": {
         "pbr_sweet": (1.5, 4.0),
         "per_sweet": (15, 30),
-        "per_overvalued": 80,       # PER80超で割高
-        "note": "PBRは効かない。PER中程度が安定",
+        "per_overvalued": None,     # PER関係なく安定。割高判定不要
+        "note": "PER関係なく安定。割高ラインなし",
     },
     "Industrials": {
         "pbr_sweet": (2.0, 6.0),
         "pbr_elite": (3.0, 8.0),
         "per_sweet": (10, 25),
-        "per_overvalued": 40,       # 製造業: PER40超で割高
-        "note": "成長期待が正しく機能するセクター",
+        "per_overvalued": 40,
+        "per_dead_if_zero": True,   # 製造業の赤字は0%。致命的
+        "note": "成長期待が機能。ただし赤字は致命的（勝率0%）",
     },
     "Consumer Cyclical": {
         "pbr_sweet": (1.0, 3.0),
         "per_sweet": (10, 25),
-        "per_overvalued": 35,       # 景気循環: PER35超で割高
-        "note": "景気循環。PBR<1は妥当な場合あり",
+        "per_overvalued": 35,
+        "per_dead_if_zero": True,   # 景気循環の赤字は25%。厳しい
+        "note": "景気循環。赤字は厳しい（25%）",
     },
     "Real Estate": {
         "pbr_sweet": (0.8, 2.0),
@@ -148,7 +150,10 @@ def calc_funda_score(info: dict, sector: str = "") -> dict:
         else:
             score += 5
     elif per == 0:
-        if sector in ("Technology", "Healthcare"):
+        if bench.get("per_dead_if_zero"):
+            score -= 15
+            reasons.append(f"赤字（{sector}では致命的）")
+        elif sector in ("Technology", "Healthcare"):
             score += 25
             reasons.append(f"赤字（{sector}では正常。成長投資中）")
         else:
