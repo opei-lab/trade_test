@@ -240,9 +240,10 @@ if cached:
 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("現在値", f"¥{current:,.0f}")
-            c2.metric("買い", f"¥{entry:,}")
-            c3.metric("売り", f"¥{target:,}", f"+{reward:.0f}%")
-            c4.metric("損切", f"¥{stop:,}")
+            c2.metric("買い指値", f"¥{entry:,}")
+            c3.metric("利確指値", f"¥{target:,}", f"+{reward:.0f}%")
+            c4.metric("損切(引け値)", f"¥{stop:,}")
+            st.caption("利確=場中指値で約定 / 損切=引け値が割ったら翌朝成行")
 
             # スコアカード（各軸独立評価）
             supply_s = r.get("supply_score", 0)
