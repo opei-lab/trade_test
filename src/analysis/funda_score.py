@@ -119,21 +119,23 @@ def calc_funda_score(info: dict, sector: str = "") -> dict:
         sweet = bench.get("per_sweet", (10, 30))
         elite_high = bench.get("per_elite_high", 0)
 
-        if elite_high and per >= elite_high:
-            score += 30  # 急成長（PER100超）
-            reasons.append(f"PER{per:.0f}（急成長。利益が追いつく前）")
+        if per >= 50 and not elite_high:
+            score -= 20  # PER50超 = 割高。バックテスト勝率10%
+            reasons.append(f"PER{per:.0f}（割高。勝率10%）")
+        elif elite_high and per >= elite_high:
+            score += 30  # Tech急成長（PER100超は別枠）
+            reasons.append(f"PER{per:.0f}（急成長）")
         elif sweet[0] <= per <= sweet[1]:
             score += 15
             reasons.append(f"PER{per:.0f}（適正帯）")
         elif per < sweet[0] and per > 0:
-            score += 20  # 低PER = 割安
+            score += 20
             reasons.append(f"PER{per:.0f}（割安）")
         else:
             score += 5
     elif per == 0:
-        # 赤字
         if sector == "Technology":
-            score += 25  # Techの赤字は成長投資（勝率50%）
+            score += 25
             reasons.append("赤字（Tech成長投資。悪くない）")
         else:
             score += 5

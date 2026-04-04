@@ -363,6 +363,11 @@ if cached:
             if funda_s < 20:
                 risk_adj -= 5
                 risk_parts.append("ファンダ弱-5")
+            # PER割高（バックテスト勝率10%）
+            per_val = r.get("per", 0)
+            if per_val >= 50 and r.get("sector", "") != "Technology":
+                risk_adj -= 20
+                risk_parts.append("PER割高-20")
 
             est_wr = min(95, max(20, tier_wr + ir_lift + risk_adj))
 
