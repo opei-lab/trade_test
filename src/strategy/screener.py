@@ -622,6 +622,8 @@ def screen_stocks(
     # Stage 3: 需給フィルタ（「需給が味方しているか」）
     # 確定的にダメなものだけ切る。上位50件に絞る
     # ============================================================
+    if progress_callback:
+        progress_callback(0, 1, f"Stage 3 需給: {len(stage2)}件をフィルタ中...")
     stage3 = []
     for r in stage2:
         if r.get("volume_trend", 1.0) < 0.5:
