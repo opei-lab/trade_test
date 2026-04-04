@@ -483,10 +483,13 @@ def screen_stocks(
     # しこり・真空・Phase・上値余地。dfのみの計算。高速
     # ============================================================
     stage2 = []
-    for item in stage1:
+    s2_total = len(stage1)
+    for s2_i, item in enumerate(stage1):
         code = item["code"]
         df = item["df"]
         current = item["current"]
+        if progress_callback and s2_i % 20 == 0:
+            progress_callback(s2_i, s2_total, f"Stage 2 構造: {code} ({s2_i+1}/{s2_total})")
 
         try:
             info = {}
@@ -669,7 +672,10 @@ def screen_stocks(
     # ============================================================
     # Stage 5: 動意スコアリング（「動き始めてるか」+「残り上値余地」）
     # ============================================================
-    for r in stage4:
+    s5_total = len(stage4)
+    for s5_i, r in enumerate(stage4):
+        if progress_callback and s5_i % 10 == 0:
+            progress_callback(s5_i, s5_total, f"Stage 5 潜伏: {r['code']} ({s5_i+1}/{s5_total})")
         df = r.get("df")
         try:
             # タイミング
