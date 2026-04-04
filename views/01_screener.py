@@ -311,18 +311,50 @@ if cached:
             checks = df_factors.get("checks", [])
             dec_score = df_factors.get("decision_score", 0) if isinstance(df_factors, dict) else 0
 
-            # 推定勝率 = Tier勝率 + IR/判断材料のlift
-            # バックテスト検証: IR良で+34%, 判断材料高で+10-15%
+            # 推定勝率 = Tier勝率 + IR lift + リスク要因
             tier_wr = {"CRASH": 88, "T1": 77, "T1b": 75, "T1c": 69, "T2": 68, "T3": 60}.get(tier, 55)
+
+            # IR lift（バックテスト検証: IR良で+34%）
             ir_lift = 0
             if ir_s >= 50: ir_lift = 20
             elif ir_s >= 30: ir_lift = 15
             elif ir_s >= 15: ir_lift = 8
-            if ir_neg: ir_lift -= 20  # ネガティブIRは致命的
-            est_wr = min(95, max(20, tier_wr + ir_lift))
+            if ir_neg: ir_lift -= 20
+
+            # リスク要因（判断材料のネガティブを反映）
+            risk_adj = 0
+            risk_parts = []
+            # 大口利確中
+            whale_phase = ""
+            wp = r.get("whale_plan", {})
+            if isinstance(wp, dict):
+                rem = wp.get("remaining", {})
+                if isinstance(rem, dict):
+                    whale_phase = rem.get("phase", "")
+            if whale_phase == "distributing":
+                risk_adj -= 15
+                risk_parts.append("大口利確中-15")
+            elif whale_phase == "exited":
+                risk_adj -= 20
+                risk_parts.append("大口撤退-20")
+            # 信用重い
+            if margin_s <= 20:
+                risk_adj -= 10
+                risk_parts.append("信用重-10")
+            # ファンダ弱い
+            if funda_s < 20:
+                risk_adj -= 5
+                risk_parts.append("ファンダ弱-5")
+
+            est_wr = min(95, max(20, tier_wr + ir_lift + risk_adj))
+
+            # 内訳表示
+            parts = [f"Tier {tier_wr}%"]
+            if ir_lift != 0: parts.append(f"IR {ir_lift:+}%")
+            if risk_adj != 0: parts.append(f"リスク {risk_adj:+}%")
 
             wr_icon = "🟢" if est_wr >= 75 else "🟡" if est_wr >= 60 else "🟠" if est_wr >= 50 else "🔴"
-            st.markdown(f"{wr_icon} **推定勝率 {est_wr}%**（Tier {tier_wr}% + IR {ir_lift:+}%）")
+            st.markdown(f"{wr_icon} **推定勝率 {est_wr}%**（{'　'.join(parts)}）")
 
             if checks:
                 with st.expander(f"判断材料 {dec_score}/100"):
