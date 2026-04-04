@@ -542,9 +542,13 @@ def update_from_screening(results: list[dict]):
         vol = r.get("volume_anomaly", 1)
         price = r.get("current_price", 0)
 
-        if code in stocks and stocks[code].get("status") != "removed":
-            # 既存: 追跡更新（スキャン結果があるのでフルデータで更新）
+        # 除外済みの銘柄は再追加しない（ループ防止）
+        if code in stocks and stocks[code].get("status") == "removed":
+            continue
+
+        if code in stocks:
+            # 既存: 追跡更新
             update_daily(code, price, grade, score, whale_phase, vol)
-        elif grade in ("S", "A") or whale_phase in ("accumulating", "holding"):
-            # 新規: 自動追加
+        elif grade in ("S", "A") and score >= 40:
+            # 新規: 自動追加（除外済みでないもののみ）
             add_from_screening(r)

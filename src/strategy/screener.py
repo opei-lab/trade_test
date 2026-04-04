@@ -464,6 +464,13 @@ def screen_stocks(
             if current > 5000:
                 continue
 
+            # データ異常値チェック（分割未調整や取得エラー防止）
+            # 直近20日の中央値と比較し、5倍以上乖離してたら異常
+            if len(df) >= 20:
+                median_20d = float(df["Close"].tail(20).median())
+                if median_20d > 0 and (current / median_20d > 5 or current / median_20d < 0.2):
+                    continue  # 異常値。スキップ
+
             avg_volume_20d = float(df["Volume"].tail(20).mean())
             avg_turnover = avg_volume_20d * current
             if avg_volume_20d < 1000:
