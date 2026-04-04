@@ -701,6 +701,20 @@ def screen_stocks(
             r["event_description"] = event_prox.get("description", "")
             r["upcoming_events"] = events[:3]
 
+            # gap_frequency（窓あけ頻度。IR銘柄の間接検出。lift+13%）
+            if df is not None and len(df) >= 20:
+                _gaps = (df['Open'].tail(20) / df['Close'].shift().tail(20) - 1).abs()
+                r["gap_frequency"] = float((_gaps > 0.02).mean())
+            else:
+                r["gap_frequency"] = 0
+
+            # bounce_from_low（直近安値からの反発率）
+            if df is not None and len(df) >= 20:
+                _recent_low = float(df['Close'].tail(20).min())
+                r["bounce_from_low"] = (float(df['Close'].iloc[-1]) - _recent_low) / _recent_low * 100 if _recent_low > 0 else 0
+            else:
+                r["bounce_from_low"] = 0
+
             # 理由テキスト
             r["reason"] = build_reason(
                 {"is_bottom": r["is_bottom"], "volume_anomaly": r["volume_anomaly"],
@@ -791,15 +805,27 @@ def screen_stocks(
         elif va < 1.0:
             score += 10
 
+        # --- gap_frequency（窓あけ頻度。検証済み: lift+13%、3年安定）---
+        gf = r.get("gap_frequency", 0)
+        if gf >= 0.3:
+            score += 20   # IR銘柄。頻繁にニュースで動く体質
+        elif gf >= 0.15:
+            score += 8
+
+        # --- bounce_from_low（直近安値からの反発。検証済み: bounce_hi+low300=62%）---
+        bounce = r.get("bounce_from_low", 0)
+        if bounce >= 10:
+            score += 10   # 底打ちして反発中
+
         # --- 危険セクター ---
         sector = r.get("sector", "")
         if sector in ("Financial Services", "Consumer Defensive"):
             score -= 20
 
-        # --- 横ばい市場: 厳選（T1条件以外は減点）---
+        # --- 横ばい市場: 厳選 ---
         if mkt == "flat":
-            if not (pp < 15 and phase == "C"):
-                score -= 10  # T1条件でなければ厳しい環境
+            if not (pp < 15 and (phase == "C" or gf >= 0.3)):
+                score -= 10
 
         return score
 
@@ -812,15 +838,19 @@ def screen_stocks(
         va = r.get("volume_anomaly", 1)
         mkt = market_env.get("condition", "flat")
 
+        gf = r.get("gap_frequency", 0)
         if mkt == "crash":
             r["tier"] = "CRASH"
             r["tier_desc"] = "暴落反発戦略（88%勝率）"
-        elif pp < 15 and phase == "C" and va < 1:
+        elif pp < 15 and gf >= 0.3:
             r["tier"] = "T1"
-            r["tier_desc"] = "bot15+PhaseC+出来高枯れ（72-79%）"
+            r["tier_desc"] = "bot15+IR銘柄（74%、3年安定）"
         elif pp < 15 and phase == "C":
             r["tier"] = "T1b"
             r["tier_desc"] = "bot15+PhaseC（72%）"
+        elif pp < 25 and gf >= 0.3:
+            r["tier"] = "T1c"
+            r["tier_desc"] = "bot25+IR銘柄（69%、3年安定）"
         elif pp < 15:
             r["tier"] = "T2"
             r["tier_desc"] = "bot15（68%）"
