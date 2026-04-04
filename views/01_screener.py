@@ -62,17 +62,6 @@ if st.session_state.scan_results is None:
 if run:
     st.session_state.scan_results = None
     st.session_state.cand_page = 0
-
-    # 新スキャン時にremovedをクリア（再候補可にする）
-    from src.data.watchlist import load_watchlist as _lwl, save_watchlist as _swl
-    _wl_tmp = _lwl()
-    _wl_stocks = _wl_tmp.get("stocks", {})
-    _removed_codes = [c for c, d in _wl_stocks.items() if d.get("status") == "removed"]
-    for c in _removed_codes:
-        del _wl_stocks[c]
-    _wl_tmp["stocks"] = _wl_stocks
-    _swl(_wl_tmp)
-
     st.markdown("### スキャン中...")
 
     from src.strategy.cache import save_screen_results as _save
@@ -197,12 +186,8 @@ cache_info = get_cache_info()
     # (スキャン処理はページ先頭のif runブロックで実行済み)
 
 if cached:
-    # ウォッチ中+除外済み = おすすめから非表示
-    # 新しいスキャン実行すれば改めて候補に出る
-    from src.data.watchlist import load_watchlist as _load_wl
-    _wl_all = _load_wl()
-    _wl_codes = set(_wl_all.get("stocks", {}).keys())
-    new_candidates = [r for r in cached if r.get("code") not in _wl_codes]
+    # おすすめとウォッチは独立。フィルタしない
+    new_candidates = cached
 
     if new_candidates:
         PER_PAGE = 10
