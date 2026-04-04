@@ -138,8 +138,11 @@ def add_from_screening(r: dict, source: str = "auto"):
 
 
 def update_daily(code: str, current_price: float, conviction_grade: str, conviction_score: float,
-                 whale_phase: str = "none", volume_anomaly: float = 1.0):
-    """日次の追跡更新。プランとの乖離をチェックする。"""
+                 whale_phase: str = "none", volume_anomaly: float = 1.0, today_high: float = 0):
+    """日次の追跡更新。プランとの乖離をチェックする。
+
+    利確は場中High（指値約定）、損切は引け値Close（ヒゲ狩り回避）で判定。
+    """
     wl = load_watchlist()
     stocks = wl.get("stocks", {})
     if code not in stocks:
@@ -207,20 +210,19 @@ def update_daily(code: str, current_price: float, conviction_grade: str, convict
         stock["mae_price"] = current_price
 
     # トレード完了判定（凍結プランに対して。未完了のみ）
-    # 利確: 場中指値で約定（current_priceが目標超なら約定済みとみなす）
-    # 損切: 引け値判定（ヒゲ狩り回避。引け値が損切ライン割ったら翌朝成行）
-    # バックテスト検証: 場中損切→引け値損切で損切率35%→19%に半減、勝率+7%
+    # 利確: 場中High（指値で約定。上げを逃さない）
+    # 損切: 引け値Close（ヒゲ狩り回避。損切率35%→19%に半減）
     if stock.get("trade_result") is None:
         plan = stock.get("initial_plan", {})
         plan_target = plan.get("target", 0)
         plan_stop = plan.get("stop_loss", 0)
+        check_high = today_high if today_high > 0 else current_price
 
-        if plan_target > 0 and current_price >= plan_target:
-            # 利確（指値約定。場中にタッチしたと判断）
+        if plan_target > 0 and check_high >= plan_target:
+            # 利確（場中Highが目標以上 = 指値約定）
             _complete_trade(stock, plan_target, "target_hit", today)
         elif plan_stop > 0 and current_price <= plan_stop:
-            # 損切（引け値判定。current_priceは引け値）
-            # 翌朝成行売りなので実際の約定価格はずれる可能性あり
+            # 損切（引け値が損切ライン以下 = 翌朝成行売り）
             _complete_trade(stock, current_price, "stop_hit", today)
         else:
             # 期限切れチェック
@@ -496,6 +498,7 @@ def refresh_watchlist():
                 continue
 
             current_price = float(df["Close"].iloc[-1])
+            today_high = float(df["High"].iloc[-1])
             vol_recent = float(df["Volume"].tail(5).mean())
             vol_avg = float(df["Volume"].tail(20).mean())
             vol_anomaly = vol_recent / vol_avg if vol_avg > 0 else 1.0
@@ -505,7 +508,7 @@ def refresh_watchlist():
 
             update_daily(code, current_price, prev_grade, prev_score,
                          data.get("initial_plan", {}).get("whale_phase", "none"),
-                         vol_anomaly)
+                         vol_anomaly, today_high=today_high)
             updated += 1
 
             # 自動除外: criticalなら即除外（手動介在なし）
