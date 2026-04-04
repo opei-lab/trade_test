@@ -161,6 +161,8 @@ def deep_analyze(candidate: dict) -> dict:
         result["ir_reasons"] = ir_eval["ir_reasons"]
         result["ir_negative"] = ir_eval["ir_negative"]
         result["ir_freshness"] = ir_eval["freshness"]
+        result["ir_ai_score"] = ir_eval.get("ai_score", 0)
+        result["ir_ai_analysis"] = ir_eval.get("ai_analysis", "")
     except Exception:
         result["ir_score"] = 0
         result["ir_grade"] = "D"

@@ -288,18 +288,32 @@ if cached:
             sc1.markdown(f"{_score_icon(supply_s)} 需給 **{supply_s}%**")
             sc2.markdown(f"{_score_icon(margin_s)} 信用 **{margin_s}%**")
             sc3.markdown(f"{_score_icon(funda_s)} ファンダ **{funda_s}%**")
-            sc4.markdown(f"{_score_icon(ir_s)} IR **{ir_s}%**")
+            # IR: キーワード vs AI の両方表示
+            ir_ai = r.get("ir_ai_score", 0)
+            if ir_ai > 0:
+                sc4.markdown(f"{_score_icon(ir_s)} IR **{ir_s}%** / AI **{ir_ai}%**")
+            else:
+                sc4.markdown(f"{_score_icon(ir_s)} IR **{ir_s}%**")
 
-            # === IR理由（あれば1行で）===
+            # === IR理由 + AI分析 ===
             ir_reasons = r.get("ir_reasons", [])
             ir_neg = r.get("ir_negative", [])
-            if ir_reasons or ir_neg:
-                ir_parts = []
-                if ir_reasons:
-                    ir_parts.append(" / ".join(ir_reasons[:3]))
-                if ir_neg:
-                    ir_parts.append("⚠ " + " / ".join(ir_neg[:2]))
-                st.caption(" | ".join(ir_parts))
+            ir_ai_text = r.get("ir_ai_analysis", "")
+            ir_lines = []
+            if ir_reasons:
+                ir_lines.append("KW: " + " / ".join(ir_reasons[:3]))
+            if ir_ai_text:
+                # AI分析の「理由:」行だけ抽出
+                for line in ir_ai_text.split("\n"):
+                    if "理由" in line:
+                        ir_lines.append("AI: " + line.strip())
+                        break
+                else:
+                    ir_lines.append("AI: " + ir_ai_text[:80])
+            if ir_neg:
+                ir_lines.append("⚠ " + " / ".join(ir_neg[:2]))
+            if ir_lines:
+                st.caption(" | ".join(ir_lines))
 
             # === シナリオ（あれば）===
             scenario_text = r.get("scenario_text", "")

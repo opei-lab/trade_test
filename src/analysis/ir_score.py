@@ -194,7 +194,44 @@ def calc_ir_score(news: list[dict], disclosures: list[dict],
                 score += 15
                 reasons.append(f"セクターパターン: {p.get('pattern', '')}（確信度{p['confidence']}%）")
 
-    # === 5. カタリスト接近度 ===
+    # === 5. AI読解（LLM利用可能時のみ）===
+    ai_score = 0
+    ai_analysis = ""
+    try:
+        from src.llm.client import is_available, generate
+        if is_available() and all_titles:
+            bodies = [n.get("body", "") for n in news if n.get("body")]
+            body_text = " ".join(bodies[:3])[:500] if bodies else ""
+            titles_text = "\n".join(all_titles[:8])
+
+            prompt = f"""以下のIR/ニュースのインパクトを0-100で評価してください。
+
+タイトル:
+{titles_text}
+{f'本文抜粋: {body_text}' if body_text else ''}
+
+評価基準:
+- 90-100: ゲームチェンジャー（導出、大型承認、黒字転換等。株価数倍の可能性）
+- 60-89: 強いインパクト（上方修正、提携、新製品等）
+- 30-59: 中程度（受注、採用、増収等）
+- 0-29: 弱いまたは特になし
+
+回答形式（厳守）:
+スコア: [数値]
+理由: [1行で簡潔に]"""
+
+            result = generate(prompt, temperature=0.1)
+            if result:
+                ai_analysis = result.strip()
+                # スコア抽出
+                import re as _re
+                score_match = _re.search(r'スコア[：:\s]*(\d+)', result)
+                if score_match:
+                    ai_score = min(100, int(score_match.group(1)))
+    except Exception:
+        pass
+
+    # === 6. カタリスト接近度 ===
     catalyst_prox = 50  # デフォルト
     if scenario:
         # IRに具体的な日付やイベント言及があるか
@@ -228,6 +265,8 @@ def calc_ir_score(news: list[dict], disclosures: list[dict],
         "ir_negative": negatives,
         "freshness": freshness,
         "catalyst_proximity": catalyst_prox,
+        "ai_score": ai_score,
+        "ai_analysis": ai_analysis,
     }
 
 
