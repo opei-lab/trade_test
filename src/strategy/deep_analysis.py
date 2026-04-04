@@ -137,6 +137,7 @@ def deep_analyze(candidate: dict) -> dict:
             code, result.get("name", code), result.get("current_price", 0),
             structure=result.get("structure"),
             df=df,
+            rich=True,  # 最終10件なので本文取得+LLM分析あり
         )
         result["scenario"] = scenario
         result["has_story"] = scenario.get("has_story", False)
