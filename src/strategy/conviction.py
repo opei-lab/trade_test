@@ -7,82 +7,67 @@
 # 確度条件（厳選12条件）
 # バックテスト実証済み or 構造的に効く理由が明確なもののみ
 CONVICTION_CHECKS = [
-    # === 大口の動き（最重要。数値指標だけでは捉えられない） ===
+    # === 10年バックテスト検証済み条件のみ ===
+    # 効かないもの（大口CLV/OBV、squeeze、divergence>20）は廃止済み
+
+    # === IR/ストーリー（最大lift源: +34%）===
     {
-        "id": "whale_accumulating",
-        "name": "大口仕込み中",
+        "id": "ir_positive",
+        "name": "IR良好",
         "weight": 5,
-        "category": "大口",
-        "description": "出来高パターンから大口の仕込みを検出。まだ売りに出ていない=下支えあり",
-        "check": lambda ctx: ctx.get("whale_phase", "none") in ("accumulating", "holding"),
+        "category": "IR",
+        "description": "IRスコア20以上。バックテスト検証: IR良で勝率71%（+34% lift）",
+        "check": lambda ctx: ctx.get("ir_score", 0) >= 20,
     },
     {
-        "id": "ml_contrarian",
-        "name": "ML逆張り",
+        "id": "no_negative_ir",
+        "name": "IRリスクなし",
         "weight": 5,
-        "category": "大口",
-        "description": "統計モデルが負けと判定+大口が仕込み中=市場が見落としている",
-        "check": lambda ctx: (ctx.get("ml_win_prob") is not None and ctx.get("ml_win_prob", 1) < 0.1) and ctx.get("whale_phase", "none") in ("accumulating", "holding"),
+        "category": "IR",
+        "description": "ネガティブIR（希薄化/下方修正）なし。ネガティブ1件で勝率0%",
+        "check": lambda ctx: len(ctx.get("ir_negative", [])) == 0,
+    },
+    {
+        "id": "has_story",
+        "name": "ストーリーあり",
+        "weight": 4,
+        "category": "IR",
+        "description": "IR/ニュースに特色がある。ストーリーあり55% vs なし29%",
+        "check": lambda ctx: ctx.get("has_story", False),
     },
 
-    # === 出口の可視性（確度の本質） ===
+    # === チャート構造（10年検証済み）===
     {
-        "id": "exit_visible",
-        "name": "出口が見える",
-        "weight": 5,
-        "category": "出口",
-        "description": "具体的イベントで出口時期が明確+前座の実績あり",
-        "check": lambda ctx: ctx.get("event_proximity_score", 0) >= 40 and ctx.get("timeline_clarity", 0) >= 60,
-    },
-    {
-        "id": "stage_change_unpriced",
-        "name": "ステージ変化+未織込",
-        "weight": 5,
-        "category": "ファンダ",
-        "description": "数値で確定したステージ変化+株価が底値圏（市場が反応していない）",
-        "check": lambda ctx: ctx.get("stage_score", 0) >= 20 and ctx["supply"].get("price_position", 50) < 40,
-    },
-
-    # === 需給構造（バックテスト実証済み） ===
-    {
-        "id": "pattern_85pct",
-        "name": "底値+売り枯れ+大口",
+        "id": "gap_frequency",
+        "name": "IR銘柄体質",
         "weight": 5,
         "category": "需給",
-        "description": "底値15%以下+売り枯れ(div>40)+大口買い検出(inst>20)。勝率85%、DD-6%",
-        "check": lambda ctx: ctx["supply"].get("price_position", 50) < 15 and ctx["supply"].get("divergence", 0) > 40 and ctx.get("whale_score", 0) >= 20,
+        "description": "窓あけ頻度30%以上。IRで頻繁に動く体質。low+gf+bot15=77%",
+        "check": lambda ctx: ctx.get("gap_frequency", 0) >= 0.3,
     },
     {
-        "id": "pattern_83pct",
-        "name": "深底値+ボラ+大口",
+        "id": "bot15",
+        "name": "底値圏",
         "weight": 5,
         "category": "需給",
-        "description": "深底値10%以下+ボラ2.5倍以上+大口買い。勝率83%、DD-4%（最小DD）",
-        "check": lambda ctx: ctx["supply"].get("price_position", 50) < 10 and ctx.get("historical_range", 0) >= 2.5 and ctx.get("whale_score", 0) >= 20,
+        "description": "底値15%以下。10年検証で全コンボの基盤",
+        "check": lambda ctx: ctx["supply"].get("price_position", 50) < 15,
     },
     {
-        "id": "pattern_81pct",
-        "name": "低位+収縮+押し目",
-        "weight": 5,
+        "id": "low_price",
+        "name": "低位株",
+        "weight": 4,
         "category": "需給",
-        "description": "¥200以下+ボラ収縮(sq>70)+直近3日で-3%以上の押し目。勝率81%、+79%",
-        "check": lambda ctx: ctx.get("current_price", 9999) < 200 and ctx["supply"].get("squeeze", 0) > 70 and ctx.get("ret_3d", 0) < -3,
+        "description": "300円以下。少ない資金で大きく動く。全環境で効く",
+        "check": lambda ctx: ctx.get("current_price", 9999) < 300,
     },
     {
-        "id": "vol_up_and_dry",
-        "name": "出来高増+売り枯れ",
-        "weight": 5,
+        "id": "bounce_recovery",
+        "name": "底打ち反発",
+        "weight": 4,
         "category": "需給",
-        "description": "出来高1.5倍超+売り枯れ（バックテスト即効勝ち率16%）",
-        "check": lambda ctx: ctx["supply"].get("volume_anomaly", 0) >= 1.5 and ctx["supply"].get("divergence", 0) > 20,
-    },
-    {
-        "id": "blowoff_triggered",
-        "name": "吹き上がり発火",
-        "weight": 5,
-        "category": "需給",
-        "description": "準備完了（収縮+底値+売り枯れ）かつトリガー発火（出来高変化 or 直近シグナル）。準備だけでは動かない。トリガーとセットで初めて有効",
-        "check": lambda ctx: ctx["supply"].get("squeeze", 0) > 70 and ctx["supply"].get("price_position", 50) < 25 and ctx["supply"].get("divergence", 0) >= 20 and (ctx["supply"].get("volume_anomaly", 0) >= 1.3 or ctx.get("timing_score", 0) >= 20),
+        "description": "直近安値から10%以上反発。low+bounce+bot15=75%",
+        "check": lambda ctx: ctx.get("bounce_from_low", 0) >= 10,
     },
 
     # === 安全性（負けにくさ） ===
@@ -135,14 +120,22 @@ CONVICTION_CHECKS = [
         ),
     },
 
-    # === タイミング（買った直後から上がるかどうかの鍵） ===
+    # === タイミング ===
     {
         "id": "timing_signal",
         "name": "直近シグナル",
+        "weight": 3,
+        "category": "タイミング",
+        "description": "タイミングスコア25以上（出来高変化 or サポート反発 or 投げ売り検出）",
+        "check": lambda ctx: ctx.get("timing_score", 0) >= 25,
+    },
+    {
+        "id": "high_daily_vol",
+        "name": "高ボラ",
         "weight": 4,
         "category": "タイミング",
-        "description": "ボラ収縮+出来高変化シグナル（バックテスト: 即UP率62%）。買った直後から上がりやすい",
-        "check": lambda ctx: ctx.get("timing_score", 0) >= 25 and ctx["supply"].get("squeeze", 0) > 40,
+        "description": "日次ボラ4%以上。10年検証: lift+8%。動いてる銘柄が勝つ",
+        "check": lambda ctx: ctx.get("daily_vol", 0) >= 4,
     },
 
     # === 銘柄特性 ===
@@ -217,6 +210,13 @@ def calc_conviction(result: dict) -> dict:
         "timeline_clarity": result.get("expectation", {}).get("timeline_clarity", 0) if isinstance(result.get("expectation"), dict) else 0,
         "positive_catalysts": result.get("positive_catalysts", []),
         "ml_win_prob": result.get("ml_win_prob"),
+        # 10年検証で追加された指標
+        "ir_score": result.get("ir_score", 0),
+        "ir_negative": result.get("ir_negative", []),
+        "has_story": result.get("has_story", False),
+        "gap_frequency": result.get("gap_frequency", 0),
+        "bounce_from_low": result.get("bounce_from_low", 0),
+        "daily_vol": result.get("daily_vol", 0),
     }
 
     passed = []
