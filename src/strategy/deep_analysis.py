@@ -342,7 +342,110 @@ def deep_analyze(candidate: dict) -> dict:
     # --- 期待値サマリー ---
     result["expectation"] = build_expectation(result)
 
+    # --- 判断材料チェックリスト（最終おすすめ度の根拠）---
+    result["decision_factors"] = build_decision_factors(result)
+
     return result
+
+
+def build_decision_factors(r: dict) -> dict:
+    """最終判断に使うチェックリスト。足切りではなく確信度の材料。"""
+    checks = []
+    score = 0  # 判断材料スコア（0-100）
+
+    # 1. 大口の下支え
+    whale_plan = r.get("whale_plan", {})
+    whale_cost = 0
+    if isinstance(whale_plan, dict):
+        accum = whale_plan.get("accumulation", {})
+        whale_cost = accum.get("avg_cost", 0) if isinstance(accum, dict) else 0
+        whale_phase = whale_plan.get("remaining", {}).get("phase", "none") if isinstance(whale_plan.get("remaining"), dict) else "none"
+
+        current = r.get("current_price", 0)
+        if whale_cost > 0 and current > 0:
+            if current <= whale_cost * 1.05:
+                checks.append(("✅", f"大口コスト¥{whale_cost:,.0f}付近。下支えあり"))
+                score += 20
+            elif current < whale_cost:
+                checks.append(("✅", f"大口コスト¥{whale_cost:,.0f}より安い。割安"))
+                score += 25
+            else:
+                checks.append(("⚠", f"大口コスト¥{whale_cost:,.0f}より{(current/whale_cost-1)*100:.0f}%高い"))
+
+        if whale_phase == "holding":
+            checks.append(("✅", "大口仕込み完了。上げるフェーズ"))
+            score += 15
+        elif whale_phase == "distributing":
+            checks.append(("🔴", "大口利確中。下支え弱体化"))
+            score -= 15
+
+    # 2. IR/ニュースの質
+    ir_score = r.get("ir_score", 0)
+    ir_grade = r.get("ir_grade", "D")
+    ir_reasons = r.get("ir_reasons", [])
+    if ir_score >= 50:
+        checks.append(("✅", f"IR強({ir_grade}): {'; '.join(ir_reasons[:2])}"))
+        score += 25
+    elif ir_score >= 20:
+        checks.append(("⚠", f"IR中({ir_grade}): {'; '.join(ir_reasons[:2])}"))
+        score += 10
+    elif ir_reasons:
+        checks.append(("⚪", f"IR弱({ir_grade})"))
+    else:
+        checks.append(("⚪", "IR: 特になし"))
+
+    ir_neg = r.get("ir_negative", [])
+    if ir_neg:
+        checks.append(("🔴", f"IRリスク: {'; '.join(ir_neg[:2])}"))
+        score -= 15
+
+    # 3. 信用需給
+    margin_ratio = r.get("margin_ratio", 0)
+    margin_score = r.get("margin_score", 50)
+    if margin_score >= 70:
+        checks.append(("✅", f"信用良好（倍率{margin_ratio:.1f}倍）" if margin_ratio > 0 else "信用取引なし"))
+        score += 10
+    elif margin_score <= 20:
+        checks.append(("🔴", f"信用重い（倍率{margin_ratio:.1f}倍）"))
+        score -= 15
+
+    # 4. 上値の根拠
+    target = r.get("target", 0)
+    current = r.get("current_price", 0)
+    reward = r.get("reward_pct", 0)
+    if reward >= 50:
+        checks.append(("✅", f"上値余地+{reward:.0f}%（目標¥{target:,}）"))
+        score += 15
+    elif reward >= 30:
+        checks.append(("⚠", f"上値余地+{reward:.0f}%"))
+        score += 5
+
+    # 5. しこり/真空
+    if r.get("has_vacuum"):
+        checks.append(("✅", f"真空地帯あり（抵抗なく上昇可能）"))
+        score += 10
+    ceiling = r.get("ceiling_score", 50)
+    if ceiling >= 55:
+        checks.append(("⚠", f"しこり重め（ceiling={ceiling}）"))
+        score -= 5
+
+    # 6. ファンダ
+    funda_score = r.get("funda_score", 0)
+    funda_reasons = r.get("funda_reasons", [])
+    if funda_score >= 60:
+        checks.append(("✅", f"ファンダ良({funda_score}): {'; '.join(funda_reasons[:2])}"))
+        score += 15
+    elif funda_score >= 30:
+        checks.append(("⚪", f"ファンダ普通({funda_score})"))
+
+    # 判断材料スコア（0-100にクランプ）
+    score = max(0, min(100, score))
+
+    return {
+        "checks": checks,
+        "decision_score": score,
+        "recommendation": "強く推奨" if score >= 70 else "推奨" if score >= 50 else "検討" if score >= 30 else "様子見",
+    }
 
 
 def build_expectation(r: dict) -> dict:

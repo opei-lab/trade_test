@@ -275,6 +275,16 @@ if cached:
             if scenario_text:
                 st.caption(scenario_text[:120])
 
+            # 判断材料チェックリスト
+            df_factors = r.get("decision_factors", {})
+            checks = df_factors.get("checks", [])
+            if checks:
+                dec_score = df_factors.get("decision_score", 0)
+                dec_rec = df_factors.get("recommendation", "")
+                with st.expander(f"判断材料 — {dec_rec}（{dec_score}点）"):
+                    for icon, text in checks:
+                        st.markdown(f"{icon} {text}")
+
             with st.expander(f"詳細レポート"):
                 struct_report = r.get("structure_report", "")
                 if struct_report:
