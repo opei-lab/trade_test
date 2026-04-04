@@ -40,60 +40,60 @@ def calc_ir_score(news: list[dict], disclosures: list[dict],
     all_titles = [n.get("title", "") for n in news] + [d.get("title", "") for d in disclosures]
     all_text = " ".join(all_titles)
 
-    # === 1. 高インパクトIR検出（尖ってると一気に加点）===
+    # === 1. 高インパクトIR（株価への影響度に比例した加点）===
+    # IRは単独で株価を数倍にする力がある。ファンダと同列ではなく独立した爆発力
 
-    # 上方修正（倍率抽出を試みる）
+    # 上方修正（倍率で加点が大きく変わる）
     for title in all_titles:
         if "上方修正" in title:
-            # 「営業利益を○%上方修正」のような数字を抽出
             pct_match = re.search(r'(\d+)[%％]', title)
             if pct_match:
                 pct = int(pct_match.group(1))
                 if pct >= 50:
-                    score += 40  # 50%以上の上方修正 = ゲームチェンジャー
-                    reasons.append(f"上方修正{pct}%（大幅）")
+                    score += 70  # 50%以上 = ゲームチェンジャー。株価2倍もあり
+                    reasons.append(f"上方修正{pct}%（大幅。株価直結）")
                 elif pct >= 20:
-                    score += 25
+                    score += 45
                     reasons.append(f"上方修正{pct}%")
                 else:
-                    score += 15
+                    score += 25
                     reasons.append(f"上方修正{pct}%（小幅）")
             else:
-                score += 20  # 倍率不明だが上方修正
+                score += 35
                 reasons.append("上方修正")
-            break  # 1つで十分
+            break
 
-    # 黒字転換
+    # 導出/ライセンス（バイオ最強。株価5-20倍の可能性）
+    if any(kw in all_text for kw in ["導出", "ライセンス契約", "ライセンスアウト"]):
+        score += 80
+        reasons.append("導出/ライセンス契約（バイオ最強。株価数倍の可能性）")
+
+    # 承認/認可（薬事承認。リスク大幅低減）
+    if any(kw in all_text for kw in ["承認取得", "承認を取得", "認可"]):
+        score += 65
+        reasons.append("承認取得（リスク大幅低減）")
+
+    # 黒字転換（ステージ変化。市場の見方が変わる）
     if any("黒字" in t and "赤字" not in t for t in all_titles):
-        score += 30
+        score += 55
         reasons.append("黒字転換（ステージ変化）")
 
     # 最高益
     if any("最高益" in t for t in all_titles):
-        score += 25
+        score += 45
         reasons.append("最高益更新")
-
-    # 導出/ライセンス（バイオ最強カタリスト）
-    if any(kw in all_text for kw in ["導出", "ライセンス契約", "ライセンスアウト"]):
-        score += 35
-        reasons.append("導出/ライセンス契約（バイオ最強）")
-
-    # 承認/認可
-    if any(kw in all_text for kw in ["承認取得", "承認を取得", "認可"]):
-        score += 30
-        reasons.append("承認取得")
 
     # 大型提携/資本提携
     if any(kw in all_text for kw in ["資本提携", "資本業務提携"]):
-        score += 25
+        score += 45
         reasons.append("資本提携")
     elif any("提携" in t for t in all_titles):
-        score += 15
+        score += 20
         reasons.append("業務提携")
 
-    # 自社株買い
+    # 自社株買い（需給改善）
     if any(kw in all_text for kw in ["自社株買", "自己株式取得"]):
-        score += 20
+        score += 30
         reasons.append("自社株買い（需給改善）")
 
     # 大型受注/契約
@@ -209,17 +209,17 @@ def calc_ir_score(news: list[dict], disclosures: list[dict],
     # === スコア確定 ===
     score = max(0, min(100, score))
 
-    # グレード判定（尖ってると高い）
-    if score >= 80:
-        grade = "S"
-    elif score >= 60:
-        grade = "A"
-    elif score >= 35:
-        grade = "B"
-    elif score >= 15:
-        grade = "C"
+    # グレード判定（インパクトの大きさで分類）
+    if score >= 70:
+        grade = "S"  # ゲームチェンジャー（導出、大幅上方修正等）
+    elif score >= 45:
+        grade = "A"  # 強い（承認、黒字転換、最高益等）
+    elif score >= 25:
+        grade = "B"  # 中程度（提携、受注、増益等）
+    elif score >= 10:
+        grade = "C"  # 弱い（好調、採用等）
     else:
-        grade = "D"
+        grade = "D"  # 特になし
 
     return {
         "ir_score": score,
