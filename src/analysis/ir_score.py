@@ -112,10 +112,25 @@ def calc_ir_score(news: list[dict], disclosures: list[dict],
         score += 8
         reasons.append("増収")
 
+    # 増益（増収増益でなくても増益単体）
+    if any("増益" in t and "減収" not in t and "増収増益" not in t for t in all_titles):
+        score += 12
+        reasons.append("増益")
+
     # 増配
     if any("増配" in t for t in all_titles):
         score += 12
         reasons.append("増配")
+
+    # 採用/導入（大企業に採用された）
+    if any("採用" in t for t in all_titles):
+        score += 10
+        reasons.append("サービス/製品採用")
+
+    # 好調/堅調
+    if any(kw in all_text for kw in ["好調", "堅調", "順調"]):
+        score += 5
+        reasons.append("業績好調")
 
     # === 2. ネガティブIR（深刻度で減点幅が変わる）===
 
