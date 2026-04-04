@@ -8,7 +8,7 @@ import requests
 import json
 
 OLLAMA_URL = "http://localhost:11434"
-DEFAULT_MODEL = "llama3"
+DEFAULT_MODEL = "qwen2.5:7b"
 
 
 def is_available() -> bool:
