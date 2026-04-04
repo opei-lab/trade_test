@@ -363,11 +363,16 @@ if cached:
             if funda_s < 20:
                 risk_adj -= 5
                 risk_parts.append("ファンダ弱-5")
-            # PER割高（バックテスト勝率10%）
+            # PER割高（セクター別閾値）
             per_val = r.get("per", 0)
-            if per_val >= 50 and r.get("sector", "") != "Technology":
-                risk_adj -= 20
-                risk_parts.append("PER割高-20")
+            sector_name = r.get("sector", "")
+            if per_val > 0 and sector_name not in ("Technology", "Healthcare"):
+                from src.analysis.funda_score import SECTOR_BENCHMARKS, DEFAULT_BENCHMARK
+                _bench = SECTOR_BENCHMARKS.get(sector_name, DEFAULT_BENCHMARK)
+                _ov = _bench.get("per_overvalued")
+                if _ov and per_val >= _ov:
+                    risk_adj -= 15
+                    risk_parts.append(f"PER割高({sector_name})-15")
 
             est_wr = min(95, max(20, tier_wr + ir_lift + risk_adj))
 
