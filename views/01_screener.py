@@ -119,9 +119,8 @@ if run:
             pass
 
         _save("グロース市場", _results)
-        _update_wl(_results)
 
-        # ウォッチ中の全銘柄を独立更新（スキャン対象外も追跡。除外も自動）
+        # ウォッチ中の銘柄だけ追跡更新（自動追加はしない）
         try:
             _wl_result = _refresh_wl()
             if _wl_result["updated"] > 0:

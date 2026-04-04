@@ -82,7 +82,7 @@ def _run_scan():
             logging.info(f"Stage 2: {len(results)} results")
 
             save_screen_results("グロース市場", results)
-            update_from_screening(results)
+            # update_from_screeningは廃止（自動ウォッチ追加しない）
 
             for r in results[:10]:
                 try:
