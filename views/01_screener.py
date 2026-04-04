@@ -234,7 +234,7 @@ if cached:
             algo_label = {"pre_algo": "🔵静か", "algo_entering": "🟡動き始め", "algo_active": "🔴過熱", "algo_exiting": "⚫撤退中"}.get(algo, "")
 
             tier = r.get("tier", "T3")
-            tier_label = {"T1": "🔴最高", "T1b": "🟠高", "T2": "🟡安定", "T3": "⚪標準"}.get(tier, "")
+            tier_label = {"CRASH": "💥暴落反発", "T1": "🔴最高", "T1b": "🟠高", "T2": "🟡安定", "T3": "⚪標準"}.get(tier, "")
             badge = " 🏆勝ちパターン" if is_best else ""
             st.markdown(f"**{r.get('name', r['code'])}** {r['code']} — {tier_label} {rec_color} **{rec_label} {conv_score}%** {algo_label}{badge}")
 

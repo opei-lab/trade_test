@@ -384,13 +384,17 @@ def check_market_environment() -> dict:
         close = mkt['Close']
         if hasattr(close, 'columns'):
             close = close.iloc[:, 0]
+        close = close.dropna()
+        if len(close) < 21:
+            return {"condition": "unknown", "tradeable": True, "description": "市場データ不足"}
 
-        ret_20d = float((close.iloc[-1] / close.iloc[-21] - 1) * 100) if len(close) >= 21 else 0
-        ret_60d = float((close.iloc[-1] / close.iloc[-61] - 1) * 100) if len(close) >= 61 else 0
+        c_last = float(close.iloc[-1])
+        ret_20d = float((c_last / float(close.iloc[-21]) - 1) * 100) if len(close) >= 21 and float(close.iloc[-21]) > 0 else 0
+        ret_60d = float((c_last / float(close.iloc[-61]) - 1) * 100) if len(close) >= 61 and float(close.iloc[-61]) > 0 else 0
 
         if ret_20d < -10:
-            return {"condition": "crash", "tradeable": False,
-                    "description": f"市場暴落中（20日{ret_20d:+.1f}%）。スキャン見送り推奨"}
+            return {"condition": "crash", "tradeable": True,
+                    "description": f"市場暴落中（20日{ret_20d:+.1f}%）。crash戦略適用（nosq+lowで88%勝率）"}
         elif ret_20d < -3:
             return {"condition": "down", "tradeable": True,
                     "description": f"市場下落（20日{ret_20d:+.1f}%）。厳選モード"}
@@ -434,9 +438,8 @@ def screen_stocks(
     market_env = check_market_environment()
     logging.info(f"Stage 0 市場: {market_env['condition']} - {market_env['description']}")
 
-    if not market_env["tradeable"]:
-        logging.warning(f"市場環境がcrash。スキャン見送り")
-        return []
+    # crash時はむしろチャンス（勝率88%）。除外せず戦略を切り替える
+    # 横ばいは厳選モード（T1のみ）
 
     # ============================================================
     # Stage 1: 環境フィルタ（全銘柄。超高速）
@@ -703,27 +706,47 @@ def screen_stocks(
     #   Phase C = 損切率-9%減、最強の安全フェーズ
 
     def calc_stealth_score(r):
+        """潜伏スコア。市場環境に応じて戦略を切り替える。"""
         score = 0
+        mkt = market_env.get("condition", "flat")
 
-        # --- 最重要: 底値位置（検証済み: bot15で勝率68%、損切25%）---
+        # === crash時: 全部底だから底値フィルタ不要。nosq+lowで88% ===
+        if mkt == "crash":
+            # crash時は底値位置を重視しない（全部底だから）
+            # 代わりにnosq+low条件（低位+ボラあり）だけで十分
+            if r.get("has_vacuum"):
+                score += 25
+            reward = r.get("reward_pct", 0)
+            if reward >= 50:
+                score += 20
+            elif reward >= 30:
+                score += 10
+            va = r.get("volume_anomaly", 1)
+            if va >= 2:
+                score += 15  # crash後の出来高急増=反発開始
+            return score
+
+        # === 通常〜横ばい市場: 検証済みフィルタ ===
+
+        # --- 底値位置（検証済み: bot15で勝率68%）---
         pp = r.get("price_position", 50)
         if pp < 10:
-            score += 40   # 深底値
+            score += 40
         elif pp < 15:
-            score += 30   # bot15ゾーン（Tier1条件）
+            score += 30
         elif pp < 25:
             score += 15
         elif pp < 35:
             score += 5
 
-        # --- Phase C（検証済み: 損切率-9%減、勝率+7%）---
+        # --- Phase C（検証済み: 損切率-9%減、勝率+7%。完璧率37%）---
         phase = r.get("phase", "NONE")
         if phase == "C":
-            score += 25   # 振り落とし後の回復。最も安全
+            score += 25
         elif phase == "A":
-            score += 10   # 静かな仕込み
+            score += 10
         elif phase == "D":
-            score -= 15   # 急騰中。高値掴みリスク
+            score -= 15
 
         # --- 上値余地 ---
         reward = r.get("reward_pct", 0)
@@ -741,36 +764,46 @@ def screen_stocks(
         # --- 出来高枯れ（検証済み: va<1でlift +11%）---
         va = r.get("volume_anomaly", 1)
         if va < 0.5:
-            score += 15   # 極端に枯れてる = 板薄い → 動けば一気
+            score += 15
         elif va < 1.0:
-            score += 10   # 枯れ気味
+            score += 10
 
-        # --- 危険セクター（検証済み: Financial/Consumer Defensiveは避ける）---
+        # --- 危険セクター ---
         sector = r.get("sector", "")
         if sector in ("Financial Services", "Consumer Defensive"):
             score -= 20
+
+        # --- 横ばい市場: 厳選（T1条件以外は減点）---
+        if mkt == "flat":
+            if not (pp < 15 and phase == "C"):
+                score -= 10  # T1条件でなければ厳しい環境
 
         return score
 
     for r in stage4:
         r["motion_score"] = calc_stealth_score(r)
 
-        # Tier判定（資金配分の参考）
+        # Tier判定（資金配分の参考。市場環境で戦略が変わる）
         pp = r.get("price_position", 50)
         phase = r.get("phase", "NONE")
         va = r.get("volume_anomaly", 1)
-        if pp < 15 and phase == "C" and va < 1:
-            r["tier"] = "T1"  # 最高精度: 72-79%勝率
-            r["tier_desc"] = "bot15+PhaseC+出来高枯れ"
+        mkt = market_env.get("condition", "flat")
+
+        if mkt == "crash":
+            r["tier"] = "CRASH"
+            r["tier_desc"] = "暴落反発戦略（88%勝率）"
+        elif pp < 15 and phase == "C" and va < 1:
+            r["tier"] = "T1"
+            r["tier_desc"] = "bot15+PhaseC+出来高枯れ（72-79%）"
         elif pp < 15 and phase == "C":
-            r["tier"] = "T1b"  # 高精度: 72%
-            r["tier_desc"] = "bot15+PhaseC"
+            r["tier"] = "T1b"
+            r["tier_desc"] = "bot15+PhaseC（72%）"
         elif pp < 15:
-            r["tier"] = "T2"  # 安定: 68%
-            r["tier_desc"] = "bot15"
+            r["tier"] = "T2"
+            r["tier_desc"] = "bot15（68%）"
         else:
-            r["tier"] = "T3"  # 標準: 57%
-            r["tier_desc"] = "nosq+low"
+            r["tier"] = "T3"
+            r["tier_desc"] = "nosq+low（57%）"
 
     stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
 
