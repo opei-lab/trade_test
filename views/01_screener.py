@@ -306,13 +306,26 @@ if cached:
             if scenario_text:
                 st.caption(scenario_text[:150])
 
-            # === 判断材料（展開式）===
+            # === 推定勝率 + 判断材料（展開式）===
             df_factors = r.get("decision_factors", {})
             checks = df_factors.get("checks", [])
+            dec_score = df_factors.get("decision_score", 0) if isinstance(df_factors, dict) else 0
+
+            # 推定勝率 = Tier勝率 + IR/判断材料のlift
+            # バックテスト検証: IR良で+34%, 判断材料高で+10-15%
+            tier_wr = {"CRASH": 88, "T1": 77, "T1b": 75, "T1c": 69, "T2": 68, "T3": 60}.get(tier, 55)
+            ir_lift = 0
+            if ir_s >= 50: ir_lift = 20
+            elif ir_s >= 30: ir_lift = 15
+            elif ir_s >= 15: ir_lift = 8
+            if ir_neg: ir_lift -= 20  # ネガティブIRは致命的
+            est_wr = min(95, max(20, tier_wr + ir_lift))
+
+            wr_icon = "🟢" if est_wr >= 75 else "🟡" if est_wr >= 60 else "🟠" if est_wr >= 50 else "🔴"
+            st.markdown(f"{wr_icon} **推定勝率 {est_wr}%**（Tier {tier_wr}% + IR {ir_lift:+}%）")
+
             if checks:
-                dec_score = df_factors.get("decision_score", 0)
-                dec_rec = df_factors.get("recommendation", "")
-                with st.expander(f"判断材料 {_score_icon(dec_score)} {dec_rec}（{dec_score}点）"):
+                with st.expander(f"判断材料 {dec_score}/100"):
                     for icon, text in checks:
                         st.markdown(f"{icon} {text}")
 
