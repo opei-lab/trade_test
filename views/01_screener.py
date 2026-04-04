@@ -245,65 +245,74 @@ if cached:
                 rec_color = "⚪"
                 rec_label = "様子見"
 
-            algo = r.get("algo_phase", "unknown")
-            algo_label = {"pre_algo": "🔵静か", "algo_entering": "🟡動き始め", "algo_active": "🔴過熱", "algo_exiting": "⚫撤退中"}.get(algo, "")
-
+            # === ヘッダー: 銘柄名 + Tier + ウォッチボタン ===
             tier = r.get("tier", "T3")
-            tier_label = {"CRASH": "💥暴落反発", "T1": "🔴最高", "T1b": "🟠高", "T1c": "🟠IR銘柄", "T2": "🟡安定", "T3": "⚪標準"}.get(tier, "")
-            badge = " 🏆勝ちパターン" if is_best else ""
+            tier_info = {
+                "CRASH": ("💥", "暴落反発", "88%"),
+                "T1":    ("🔴", "最高確度", "77%"),
+                "T1b":   ("🟠", "高確度", "75%"),
+                "T1c":   ("🟠", "IR銘柄", "69%"),
+                "T2":    ("🟡", "安定", "68%"),
+                "T3":    ("⚪", "標準", "60%"),
+            }.get(tier, ("⚪", "標準", "60%"))
+
             _rcol1, _rcol2 = st.columns([5, 1])
             with _rcol1:
-                st.markdown(f"**{r.get('name', r['code'])}** {r['code']} — {tier_label} {rec_color} **{rec_label} {conv_score}%** {algo_label}{badge}")
+                st.markdown(f"{tier_info[0]} **{r.get('name', r['code'])}** `{r['code']}` — **{tier_info[1]}（勝率{tier_info[2]}）**")
             with _rcol2:
                 if st.button("ウォッチ", key=f"watch_{r['code']}"):
                     from src.data.watchlist import add_from_screening
                     add_from_screening(r, source="manual")
                     st.rerun()
 
+            # === 価格情報 ===
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("現在値", f"¥{current:,.0f}")
             c2.metric("買い指値", f"¥{entry:,}")
-            c3.metric("利確指値", f"¥{target:,}", f"+{reward:.0f}%")
+            c3.metric("利確(場中)", f"¥{target:,}", f"+{reward:.0f}%")
             c4.metric("損切(引け値)", f"¥{stop:,}")
-            st.caption("利確=場中指値で約定 / 損切=引け値が割ったら翌朝成行")
 
-            # スコアカード（各軸独立評価）
+            # === スコアカード（%表示。シンプルに）===
             supply_s = r.get("supply_score", 0)
             margin_s = r.get("margin_score", 50)
             funda_s = r.get("funda_score", 0)
             ir_s = r.get("ir_score", 0)
-            ir_g = r.get("ir_grade", "?")
 
-            def _bar(val, max_val=100):
-                filled = int(val / max_val * 5)
-                return "█" * filled + "░" * (5 - filled)
+            def _score_icon(val):
+                if val >= 70: return "🟢"
+                if val >= 40: return "🟡"
+                if val >= 20: return "🟠"
+                return "🔴"
 
-            st.caption(
-                f"需給{_bar(supply_s)}{supply_s} "
-                f"信用{_bar(margin_s)}{margin_s} "
-                f"ファンダ{_bar(funda_s)}{funda_s} "
-                f"IR{_bar(ir_s)}{ir_s}({ir_g})"
-            )
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            sc1.markdown(f"{_score_icon(supply_s)} 需給 **{supply_s}%**")
+            sc2.markdown(f"{_score_icon(margin_s)} 信用 **{margin_s}%**")
+            sc3.markdown(f"{_score_icon(funda_s)} ファンダ **{funda_s}%**")
+            sc4.markdown(f"{_score_icon(ir_s)} IR **{ir_s}%**")
 
-            # IR理由（尖ってれば表示）
+            # === IR理由（あれば1行で）===
             ir_reasons = r.get("ir_reasons", [])
-            if ir_reasons:
-                st.caption(f"IR: {' / '.join(ir_reasons[:3])}")
             ir_neg = r.get("ir_negative", [])
-            if ir_neg:
-                st.caption(f"⚠ {' / '.join(ir_neg[:2])}")
+            if ir_reasons or ir_neg:
+                ir_parts = []
+                if ir_reasons:
+                    ir_parts.append(" / ".join(ir_reasons[:3]))
+                if ir_neg:
+                    ir_parts.append("⚠ " + " / ".join(ir_neg[:2]))
+                st.caption(" | ".join(ir_parts))
 
+            # === シナリオ（あれば）===
             scenario_text = r.get("scenario_text", "")
             if scenario_text:
-                st.caption(scenario_text[:120])
+                st.caption(scenario_text[:150])
 
-            # 判断材料チェックリスト
+            # === 判断材料（展開式）===
             df_factors = r.get("decision_factors", {})
             checks = df_factors.get("checks", [])
             if checks:
                 dec_score = df_factors.get("decision_score", 0)
                 dec_rec = df_factors.get("recommendation", "")
-                with st.expander(f"判断材料 — {dec_rec}（{dec_score}点）"):
+                with st.expander(f"判断材料 {_score_icon(dec_score)} {dec_rec}（{dec_score}点）"):
                     for icon, text in checks:
                         st.markdown(f"{icon} {text}")
 
