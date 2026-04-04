@@ -242,7 +242,14 @@ if cached:
             tier = r.get("tier", "T3")
             tier_label = {"CRASH": "💥暴落反発", "T1": "🔴最高", "T1b": "🟠高", "T2": "🟡安定", "T3": "⚪標準"}.get(tier, "")
             badge = " 🏆勝ちパターン" if is_best else ""
-            st.markdown(f"**{r.get('name', r['code'])}** {r['code']} — {tier_label} {rec_color} **{rec_label} {conv_score}%** {algo_label}{badge}")
+            _rcol1, _rcol2 = st.columns([5, 1])
+            with _rcol1:
+                st.markdown(f"**{r.get('name', r['code'])}** {r['code']} — {tier_label} {rec_color} **{rec_label} {conv_score}%** {algo_label}{badge}")
+            with _rcol2:
+                if st.button("ウォッチ", key=f"watch_{r['code']}"):
+                    from src.data.watchlist import add_from_screening
+                    add_from_screening(r, source="manual")
+                    st.rerun()
 
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("現在値", f"¥{current:,.0f}")
