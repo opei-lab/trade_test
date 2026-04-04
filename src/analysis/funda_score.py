@@ -11,44 +11,58 @@
 # グロース市場: PBR割安=見捨てられてる。成長期待が乗ってる方が強い
 SECTOR_BENCHMARKS = {
     "Healthcare": {
-        "pbr_sweet": (1.0, 5.0),   # バイオはPBR低い方が割安でバリューあり
-        "pbr_elite": (0.5, 2.0),   # PBR<2がエリート（中央4.9に対して）
-        "per_irrelevant": True,     # 赤字が普通。PERは意味なし
+        "pbr_sweet": (1.0, 5.0),
+        "pbr_elite": (0.5, 2.0),
+        "per_irrelevant": True,     # バイオ: PER無意味。パイプラインで評価
+        "per_overvalued": None,     # 割高判定なし
         "note": "パイプラインの価値。PER無視。PBR低い=市場が過小評価",
     },
     "Technology": {
         "pbr_sweet": (1.5, 4.0),
         "pbr_elite": (1.0, 2.0),
-        "per_sweet": (0, 0.01),     # 赤字の方が勝つ（成長投資中）
-        "per_elite_high": 100,      # PER100超も強い（急成長の証）
+        "per_sweet": (0, 0.01),     # 赤字の方が勝つ
+        "per_elite_high": 100,      # PER100超=急成長
+        "per_overvalued": None,     # Tech: 割高判定なし。高PERは成長の証
         "note": "今の利益は無意味。成長投資中の赤字はむしろ良い",
     },
     "Communication Services": {
         "pbr_sweet": (1.5, 4.0),
         "per_sweet": (15, 30),
+        "per_overvalued": 80,       # PER80超で割高
         "note": "PBRは効かない。PER中程度が安定",
     },
     "Industrials": {
-        "pbr_sweet": (2.0, 6.0),    # PBR高い方が勝つ（成長期待）
+        "pbr_sweet": (2.0, 6.0),
         "pbr_elite": (3.0, 8.0),
         "per_sweet": (10, 25),
+        "per_overvalued": 40,       # 製造業: PER40超で割高
         "note": "成長期待が正しく機能するセクター",
     },
     "Consumer Cyclical": {
         "pbr_sweet": (1.0, 3.0),
         "per_sweet": (10, 25),
+        "per_overvalued": 35,       # 景気循環: PER35超で割高
         "note": "景気循環。PBR<1は妥当な場合あり",
     },
     "Real Estate": {
-        "pbr_sweet": (0.8, 2.0),    # 不動産はPBR=NAV。1倍割れは割安
+        "pbr_sweet": (0.8, 2.0),
         "pbr_elite": (0.5, 1.0),
         "per_sweet": (8, 20),
+        "per_overvalued": 30,       # 不動産: PER30超で割高
         "note": "PBR≒NAV。1倍割れは本当の割安",
     },
     "Consumer Defensive": {
         "pbr_sweet": (1.0, 3.0),
         "per_sweet": (10, 20),
+        "per_overvalued": 30,       # 安定業種: PER30超で割高
         "note": "安定型。バリュエーション通りに機能",
+    },
+    "Financial Services": {
+        "pbr_sweet": (0.5, 1.5),
+        "pbr_elite": (0.3, 0.8),
+        "per_sweet": (8, 15),
+        "per_overvalued": 25,       # 金融: PER25超で割高
+        "note": "PBRが最重要。ROEとの相関が強い",
     },
 }
 
@@ -109,34 +123,34 @@ def calc_funda_score(info: dict, sector: str = "") -> dict:
     else:
         score += 5  # PBR取得不可
 
-    # === PER評価 ===
+    # === PER評価（セクター別割高ライン）===
     if bench.get("per_irrelevant"):
-        # バイオ等: PERは無視。赤字が普通
         if per == 0:
             score += 20
             reasons.append("赤字（バイオでは正常。成長投資中）")
     elif per > 0:
         sweet = bench.get("per_sweet", (10, 30))
         elite_high = bench.get("per_elite_high", 0)
+        overvalued = bench.get("per_overvalued")
 
-        if per >= 50 and not elite_high:
-            score -= 20  # PER50超 = 割高。バックテスト勝率10%
-            reasons.append(f"PER{per:.0f}（割高。勝率10%）")
+        if overvalued and per >= overvalued:
+            score -= 20
+            reasons.append(f"PER{per:.0f}（{sector}で割高。{overvalued}超）")
         elif elite_high and per >= elite_high:
-            score += 30  # Tech急成長（PER100超は別枠）
+            score += 30
             reasons.append(f"PER{per:.0f}（急成長）")
         elif sweet[0] <= per <= sweet[1]:
             score += 15
-            reasons.append(f"PER{per:.0f}（適正帯）")
+            reasons.append(f"PER{per:.0f}（{sector}適正帯）")
         elif per < sweet[0] and per > 0:
             score += 20
             reasons.append(f"PER{per:.0f}（割安）")
         else:
             score += 5
     elif per == 0:
-        if sector == "Technology":
+        if sector in ("Technology", "Healthcare"):
             score += 25
-            reasons.append("赤字（Tech成長投資。悪くない）")
+            reasons.append(f"赤字（{sector}では正常。成長投資中）")
         else:
             score += 5
             reasons.append("赤字")
