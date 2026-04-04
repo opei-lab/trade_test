@@ -62,6 +62,16 @@ if st.session_state.scan_results is None:
 if run:
     st.session_state.scan_results = None
     st.session_state.cand_page = 0
+
+    # 新スキャン時にremovedをクリア（再候補可にする）
+    from src.data.watchlist import load_watchlist as _lwl, save_watchlist as _swl
+    _wl_tmp = _lwl()
+    _wl_stocks = _wl_tmp.get("stocks", {})
+    for c in [k for k, v in _wl_stocks.items() if v.get("status") == "removed"]:
+        del _wl_stocks[c]
+    _wl_tmp["stocks"] = _wl_stocks
+    _swl(_wl_tmp)
+
     st.markdown("### スキャン中...")
 
     from src.strategy.cache import save_screen_results as _save
