@@ -70,6 +70,17 @@ def fetch_price(
     # NaN行を除去（取引日だが値が未確定の行など）
     df = df.dropna(subset=["Close"])
 
+    # データ品質チェック（分割未調整値の混入防止）
+    if len(df) >= 2:
+        pct = df["Close"].pct_change().abs()
+        # 1日で80%以上変動した行は分割/併合の調整ミスの可能性
+        suspicious = pct > 0.8
+        if suspicious.any():
+            # 直近の値を信頼し、異常変動以前のデータを除去
+            first_bad = suspicious.idxmax()
+            df = df.loc[first_bad:]
+            df = df.iloc[1:]  # 異常変動の行自体も除去
+
     return df
 
 
