@@ -1,5 +1,5 @@
 # テーマ辞書（自動更新 + 手動定義）
-# 最終更新: 2026-04-03 10:10
+# 最終更新: 2026-04-03 15:02
 # manual: true のテーマは自動更新で上書きされない
 # auto: true のテーマはランキングから自動生成
 
@@ -190,6 +190,32 @@ reshoring:
   - 工場建設決定
   known_codes: []
   manual: true
+全固体電池:
+  name: 全固体電池
+  keywords:
+  - 全固体電池
+  related_sectors: []
+  catalysts: []
+  known_codes:
+  - '6810'
+  - '6955'
+  - '5218'
+  - '6584'
+  - '6752'
+  - '7203'
+  - '6674'
+  - '6762'
+  - '6976'
+  - '6981'
+  - '4021'
+  - '4114'
+  - '4188'
+  - '4204'
+  - '4275'
+  auto: true
+  source: rise
+  rank: 1
+  updated: '2026-04-03'
 省エネ空調:
   name: 省エネ空調
   keywords:
@@ -214,82 +240,56 @@ reshoring:
   - '1965'
   auto: true
   source: rise
-  rank: 1
-  updated: '2026-04-03'
-専門商社:
-  name: 専門商社
-  keywords:
-  - 専門商社
-  related_sectors: []
-  catalysts: []
-  known_codes:
-  - '2692'
-  - '3132'
-  - '8012'
-  - '9830'
-  - '9962'
-  - '2750'
-  - '7128'
-  - '7472'
-  - '8151'
-  - '8154'
-  - '8226'
-  - '2760'
-  - '7537'
-  - '8051'
-  - '8088'
-  auto: true
-  source: rise
   rank: 2
   updated: '2026-04-03'
-保険:
-  name: 保険
+都市鉱山:
+  name: 都市鉱山
   keywords:
-  - 保険
+  - 都市鉱山
   related_sectors: []
   catalysts: []
   known_codes:
-  - '7326'
-  - '8630'
-  - '8725'
-  - '8750'
-  - '8766'
-  - '7181'
-  - '7157'
-  - '7325'
-  - '7343'
-  - '7388'
-  - '8715'
-  - '8729'
-  - '8795'
-  - '8798'
-  - '8473'
+  - '5857'
+  - '7456'
+  - '5714'
+  - '1491'
+  - '3036'
+  - '3556'
+  - '4092'
+  - '5020'
+  - '5411'
+  - '5480'
+  - '5563'
+  - '5698'
+  - '5699'
+  - '5706'
+  - '5707'
   auto: true
   source: rise
   rank: 3
   updated: '2026-04-03'
-医療機器:
-  name: 医療機器
+リサイクル:
+  name: リサイクル
   keywords:
-  - 医療機器
+  - リサイクル
   related_sectors: []
   catalysts: []
   known_codes:
-  - '7575'
-  - '7634'
-  - '7747'
-  - '7775'
-  - '6823'
-  - '6960'
-  - '7702'
-  - '7716'
-  - '7730'
-  - '7733'
-  - '7745'
-  - '7751'
-  - '7792'
-  - '9265'
-  - '4543'
+  - '5698'
+  - '5857'
+  - '7456'
+  - '9247'
+  - '1491'
+  - '3023'
+  - '4125'
+  - '5699'
+  - '5714'
+  - '6347'
+  - '7947'
+  - '9793'
+  - '5711'
+  - '5713'
+  - '5724'
   auto: true
   source: rise
   rank: 4
@@ -320,64 +320,16 @@ reshoring:
   source: rise
   rank: 5
   updated: '2026-04-03'
-都市鉱山:
-  name: 都市鉱山
+省エネ関連:
+  name: 省エネ関連
   keywords:
-  - 都市鉱山
+  - 省エネ関連
   related_sectors: []
   catalysts: []
-  known_codes:
-  - '5857'
-  - '7456'
-  - '5714'
-  - '1491'
-  - '3036'
-  - '3556'
-  - '4092'
-  - '5020'
-  - '5411'
-  - '5480'
-  - '5563'
-  - '5698'
-  - '5699'
-  - '5706'
-  - '5707'
+  known_codes: []
   auto: true
   source: rise
   rank: 6
-  updated: '2026-04-03'
-金利上昇メリット:
-  name: 金利上昇メリット
-  keywords:
-  - 金利上昇メリット
-  related_sectors: []
-  catalysts: []
-  known_codes: []
-  auto: true
-  source: rise
-  rank: 7
-  updated: '2026-04-03'
-自動運転車:
-  name: 自動運転車
-  keywords:
-  - 自動運転車
-  related_sectors: []
-  catalysts: []
-  known_codes: []
-  auto: true
-  source: rise
-  rank: 8
-  updated: '2026-04-03'
-中国関連:
-  name: 中国関連
-  keywords:
-  - 中国関連
-  related_sectors: []
-  catalysts: []
-  known_codes: []
-  auto: true
-  source: rise
-  rank: 9
   updated: '2026-04-03'
 サイバーセキュリティ:
   name: サイバーセキュリティ
@@ -388,12 +340,45 @@ reshoring:
   known_codes: []
   auto: true
   source: rise
+  rank: 7
+  updated: '2026-04-03'
+医療_医薬品:
+  name: 医療・医薬品
+  keywords:
+  - 医療・医薬品
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 8
+  updated: '2026-04-03'
+食品スーパー:
+  name: 食品スーパー
+  keywords:
+  - 食品スーパー
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
+  rank: 9
+  updated: '2026-04-03'
+貴金属回収:
+  name: 貴金属回収
+  keywords:
+  - 貴金属回収
+  related_sectors: []
+  catalysts: []
+  known_codes: []
+  auto: true
+  source: rise
   rank: 10
   updated: '2026-04-03'
-バイオ航空燃料:
-  name: バイオ航空燃料
+2026年のipo:
+  name: 2026年のIPO
   keywords:
-  - バイオ航空燃料
+  - 2026年のIPO
   related_sectors: []
   catalysts: []
   known_codes: []
@@ -401,10 +386,10 @@ reshoring:
   source: rise
   rank: 11
   updated: '2026-04-03'
-生成ai:
-  name: 生成AI
+電力設備投資関連:
+  name: 電力設備投資関連
   keywords:
-  - 生成AI
+  - 電力設備投資関連
   related_sectors: []
   catalysts: []
   known_codes: []
@@ -412,21 +397,36 @@ reshoring:
   source: rise
   rank: 12
   updated: '2026-04-03'
-ビジネスホテル:
-  name: ビジネスホテル
+専門商社:
+  name: 専門商社
   keywords:
-  - ビジネスホテル
+  - 専門商社
   related_sectors: []
   catalysts: []
-  known_codes: []
+  known_codes:
+  - '2692'
+  - '3132'
+  - '8012'
+  - '9830'
+  - '9962'
+  - '2750'
+  - '7128'
+  - '7472'
+  - '8151'
+  - '8154'
+  - '8226'
+  - '2760'
+  - '7537'
+  - '8051'
+  - '8088'
   auto: true
   source: rise
   rank: 13
   updated: '2026-04-03'
-全固体電池:
-  name: 全固体電池
+人工ダイヤモンド:
+  name: 人工ダイヤモンド
   keywords:
-  - 全固体電池
+  - 人工ダイヤモンド
   related_sectors: []
   catalysts: []
   known_codes: []
@@ -434,10 +434,10 @@ reshoring:
   source: rise
   rank: 14
   updated: '2026-04-03'
-医療_医薬品:
-  name: 医療・医薬品
+空飛ぶクルマ:
+  name: 空飛ぶクルマ
   keywords:
-  - 医療・医薬品
+  - 空飛ぶクルマ
   related_sectors: []
   catalysts: []
   known_codes: []
