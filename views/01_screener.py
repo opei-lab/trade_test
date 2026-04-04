@@ -186,9 +186,11 @@ cache_info = get_cache_info()
     # (スキャン処理はページ先頭のif runブロックで実行済み)
 
 if cached:
-    # ウォッチ済みの銘柄を除外
-    watch_codes = set(w["code"] for w in watchlist)
-    new_candidates = [r for r in cached if r.get("code") not in watch_codes]
+    # ウォッチ済み+除外済みの銘柄を非表示（removedも含む）
+    from src.data.watchlist import load_watchlist as _load_wl
+    _all_wl = _load_wl()
+    _all_codes = set(_all_wl.get("stocks", {}).keys())  # active+removed全部
+    new_candidates = [r for r in cached if r.get("code") not in _all_codes]
 
     if new_candidates:
         PER_PAGE = 10
