@@ -84,9 +84,12 @@ if run:
     _name_map = dict(zip(_stocks["code"].astype(str), _stocks["name"]))
 
     _progress = st.progress(0, text="スキャン中...")
+    def _on_progress(c, t, msg):
+        pct = min((c+1)/max(t, 1), 0.99)
+        _progress.progress(pct, text=msg)
     _candidates = screen_stocks(
         _codes_list, min_score=0,
-        progress_callback=lambda c, t, code: _progress.progress((c+1)/t, text=f"Stage 1-4: {code} ({c+1}/{t})"),
+        progress_callback=_on_progress,
     )
     for _r in _candidates:
         _jpx = _name_map.get(_r["code"], "")

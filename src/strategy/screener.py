@@ -448,7 +448,7 @@ def screen_stocks(
     stage1 = []
     for i, code in enumerate(codes):
         if progress_callback:
-            progress_callback(i, total, code)
+            progress_callback(i, total, f"Stage 1 環境: {code} ({i+1}/{total})")
 
         if code in processed:
             continue
@@ -612,6 +612,8 @@ def screen_stocks(
             continue
 
     logging.info(f"Stage 2 構造: {len(stage1)}→{len(stage2)}")
+    if progress_callback:
+        progress_callback(0, 1, f"Stage 2完了: {len(stage1)}→{len(stage2)}")
 
     # ============================================================
     # Stage 3: 需給フィルタ（「需給が味方しているか」）
@@ -633,6 +635,8 @@ def screen_stocks(
     stage3 = stage3[:50]
 
     logging.info(f"Stage 3 需給: {len(stage2)}→{len(stage3)}")
+    if progress_callback:
+        progress_callback(0, 1, f"Stage 3完了: →{len(stage3)}件. 信用チェック中...")
 
     # ============================================================
     # Stage 4: 信用致命判定（50件だけに適用。5-10倍=勝率10%を除外）
@@ -640,8 +644,10 @@ def screen_stocks(
     from src.analysis.funda_score import calc_margin_score
 
     stage4 = []
-    for r in stage3:
+    for si, r in enumerate(stage3):
         code = r["code"]
+        if progress_callback and si % 10 == 0:
+            progress_callback(si, len(stage3), f"Stage 4 信用: {code} ({si+1}/{len(stage3)})")
         try:
             margin = fetch_margin_data(code)
             ms = calc_margin_score(margin.get("margin_ratio", 0))
@@ -657,6 +663,8 @@ def screen_stocks(
         stage4.append(r)
 
     logging.info(f"Stage 4 信用: {len(stage3)}→{len(stage4)}")
+    if progress_callback:
+        progress_callback(0, 1, f"Stage 4完了: →{len(stage4)}件. 潜伏スコア計算中...")
 
     # ============================================================
     # Stage 5: 動意スコアリング（「動き始めてるか」+「残り上値余地」）
@@ -815,5 +823,7 @@ def screen_stocks(
         r["market_env"] = market_env  # 市場環境を結果に含める
 
     logging.info(f"Stage 5 潜伏: {len(stage4)}→{len(stage5)}")
+    if progress_callback:
+        progress_callback(0, 1, f"Stage 5完了: →{len(stage5)}件. 情報分析へ...")
 
     return stage5
