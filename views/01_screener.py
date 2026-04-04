@@ -85,7 +85,10 @@ if run:
 
     _progress = st.progress(0, text="スキャン中...")
     def _on_progress(c, t, msg):
-        pct = min((c+1)/max(t, 1), 0.99)
+        if t > 1:
+            pct = min((c+1)/t, 0.95)  # Stage 1用（0-95%）
+        else:
+            pct = 0.96  # Stage 2-5の状態メッセージ
         _progress.progress(pct, text=msg)
     _candidates = screen_stocks(
         _codes_list, min_score=0,
