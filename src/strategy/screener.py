@@ -776,12 +776,12 @@ def screen_stocks(
         elif pp < 35:
             score += 5
 
-        # --- Phase C（検証済み: 損切率-9%減、勝率+7%。完璧率37%）---
+        # --- Phase（10年検証: phCは3年では72%だが10年では44%。過学習だった）---
         phase = r.get("phase", "NONE")
         if phase == "C":
-            score += 25
+            score += 10   # 加点するが控えめ（10年だと不安定）
         elif phase == "A":
-            score += 10
+            score += 5
         elif phase == "D":
             score -= 15
 
@@ -805,17 +805,29 @@ def screen_stocks(
         elif va < 1.0:
             score += 10
 
-        # --- gap_frequency（窓あけ頻度。検証済み: lift+13%、3年安定）---
+        # --- gap_frequency（10年検証: low+gf+bot15=77%。最強の安定コンボ）---
         gf = r.get("gap_frequency", 0)
         if gf >= 0.3:
-            score += 20   # IR銘柄。頻繁にニュースで動く体質
+            score += 30   # IR銘柄。最重要指標
         elif gf >= 0.15:
-            score += 8
+            score += 12
 
-        # --- bounce_from_low（直近安値からの反発。検証済み: bounce_hi+low300=62%）---
+        # --- bounce_from_low（10年検証: low+bounce+bot15=75%）---
         bounce = r.get("bounce_from_low", 0)
         if bounce >= 10:
-            score += 10   # 底打ちして反発中
+            score += 15   # 底打ちして反発中
+
+        # --- daily_vol（10年検証: 6%+でlift+11%。ボラ高いほど勝つ）---
+        daily_vol = 0
+        df = r.get("df")
+        if df is not None and len(df) >= 20:
+            daily_vol = float(df['Close'].tail(20).pct_change().std() * 100)
+        if daily_vol >= 6:
+            score += 15
+        elif daily_vol >= 4:
+            score += 8
+        elif daily_vol < 2:
+            score -= 10  # 極低ボラはlift-9%
 
         # --- 危険セクター ---
         sector = r.get("sector", "")
@@ -839,24 +851,25 @@ def screen_stocks(
         mkt = market_env.get("condition", "flat")
 
         gf = r.get("gap_frequency", 0)
+        bounce = r.get("bounce_from_low", 0)
         if mkt == "crash":
             r["tier"] = "CRASH"
-            r["tier_desc"] = "暴落反発戦略（88%勝率）"
+            r["tier_desc"] = "暴落反発（88%）"
         elif pp < 15 and gf >= 0.3:
             r["tier"] = "T1"
-            r["tier_desc"] = "bot15+IR銘柄（74%、3年安定）"
-        elif pp < 15 and phase == "C":
+            r["tier_desc"] = "bot15+IR銘柄（77%、10年検証）"
+        elif pp < 15 and bounce >= 10:
             r["tier"] = "T1b"
-            r["tier_desc"] = "bot15+PhaseC（72%）"
+            r["tier_desc"] = "bot15+反発中（75%）"
         elif pp < 25 and gf >= 0.3:
             r["tier"] = "T1c"
-            r["tier_desc"] = "bot25+IR銘柄（69%、3年安定）"
+            r["tier_desc"] = "bot25+IR銘柄（69%）"
         elif pp < 15:
             r["tier"] = "T2"
             r["tier_desc"] = "bot15（68%）"
         else:
             r["tier"] = "T3"
-            r["tier_desc"] = "nosq+low（57%）"
+            r["tier_desc"] = "nosq+low（60%）"
 
     stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
 
