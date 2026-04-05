@@ -1,0 +1,286 @@
+# 日本バイオ銘柄 → 海外パートナー/薬品/治験マッピング
+# code: 証券コード
+# en_name: 英語社名（FDA/SEC検索用）
+# partners: 提携先企業（SEC 8-K監視用）
+# pipeline: 主要パイプライン（ClinicalTrials.gov/FDA検索用）
+# nct_ids: ClinicalTrials.gov NCT番号（直接監視用）
+# sec_cik: 提携先のSEC CIK番号（EDGAR検索用）
+# keywords: Google News RSS検索キーワード
+
+# === グロース・バイオ（500円以下ターゲット） ===
+
+"4563":
+  name: アンジェス
+  en_name: AnGes
+  partners:
+    - name: Daicel
+      sec_cik: null
+  pipeline:
+    - drug: HGF plasmid
+      indication: peripheral arterial disease
+      phase: Phase 3
+    - drug: NF-κB decoy oligonucleotide
+      indication: atopic dermatitis
+      phase: Phase 3
+  keywords: ["AnGes", "HGF plasmid", "collategene"]
+
+"4564":
+  name: オンコセラピー・サイエンス
+  en_name: OncoTherapy Science
+  partners: []
+  pipeline:
+    - drug: OTS-102
+      indication: cancer vaccine
+      phase: Phase 2
+  keywords: ["OncoTherapy Science"]
+
+"4572":
+  name: カルナバイオサイエンス
+  en_name: CarnaBio
+  partners:
+    - name: Gilead Sciences
+      sec_cik: "882095"
+    - name: Merck KGaA
+      sec_cik: null
+  pipeline:
+    - drug: DGKα inhibitor
+      indication: solid tumors
+      phase: Phase 1
+  keywords: ["CarnaBio", "DGK inhibitor", "Gilead CarnaBio"]
+
+"4575":
+  name: キャンバス
+  en_name: CanBas
+  partners: []
+  pipeline:
+    - drug: CBP501
+      indication: solid tumors
+      phase: Phase 2
+  keywords: ["CanBas", "CBP501"]
+
+"4579":
+  name: ラクオリア創薬
+  en_name: RaQualia Pharma
+  partners:
+    - name: Endo International
+      sec_cik: "1593034"
+    - name: Pfizer
+      sec_cik: "78003"
+  pipeline:
+    - drug: Tegoprazan
+      indication: GERD
+      phase: Approved (overseas)
+    - drug: V2R antagonist
+      indication: ADPKD
+      phase: Phase 2
+  keywords: ["RaQualia", "tegoprazan"]
+
+"4582":
+  name: シンバイオ製薬
+  en_name: SymBio Pharmaceuticals
+  partners:
+    - name: Astellas
+      sec_cik: null
+  pipeline:
+    - drug: brincidofovir
+      indication: adenovirus
+      phase: Phase 3
+    - drug: rigosertib
+      indication: MDS
+      phase: Phase 3
+  keywords: ["SymBio Pharma", "brincidofovir", "rigosertib"]
+
+"4588":
+  name: オンコリスバイオファーマ
+  en_name: Oncolys BioPharma
+  partners:
+    - name: Merck (MSD)
+      sec_cik: "310158"
+  pipeline:
+    - drug: Telomelysin (OBP-301)
+      indication: esophageal cancer
+      phase: Phase 2
+    - drug: OBP-702
+      indication: solid tumors
+      phase: Phase 1
+  keywords: ["Oncolys BioPharma", "Telomelysin", "OBP-301"]
+
+"4592":
+  name: サンバイオ
+  en_name: SanBio
+  partners: []
+  pipeline:
+    - drug: SB623
+      indication: traumatic brain injury
+      phase: Phase 2
+    - drug: SB623
+      indication: chronic stroke
+      phase: Phase 2
+  keywords: ["SanBio", "SB623"]
+  nct_ids: ["NCT02416492", "NCT01287936"]
+
+"4593":
+  name: ヘリオス
+  en_name: Healios
+  partners:
+    - name: Athersys
+      sec_cik: "1368148"
+  pipeline:
+    - drug: HLCM051 (MultiStem)
+      indication: ARDS
+      phase: Phase 2
+    - drug: HLCM051
+      indication: ischemic stroke
+      phase: Phase 2/3
+  keywords: ["Healios", "MultiStem", "HLCM051"]
+
+"4596":
+  name: 窪田製薬ホールディングス
+  en_name: Kubota Pharmaceutical Holdings
+  partners: []
+  pipeline:
+    - drug: Emixustat
+      indication: Stargardt disease
+      phase: Phase 3
+  keywords: ["Kubota Pharmaceutical", "emixustat"]
+  nct_ids: ["NCT03772665"]
+
+"4597":
+  name: ソレイジア・ファーマ
+  en_name: Solasia Pharma
+  partners:
+    - name: Hanmi Pharmaceutical
+      sec_cik: null
+  pipeline:
+    - drug: Darinaparsin
+      indication: PTCL
+      phase: Approved (Japan)
+    - drug: episil
+      indication: oral mucositis
+      phase: Approved
+  keywords: ["Solasia Pharma", "darinaparsin"]
+
+"4883":
+  name: モダリス
+  en_name: Modalis Therapeutics
+  partners:
+    - name: Astellas
+      sec_cik: null
+  pipeline:
+    - drug: CRISPR-GNDM
+      indication: muscular dystrophy
+      phase: Preclinical
+  keywords: ["Modalis Therapeutics", "CRISPR-GNDM"]
+
+"4884":
+  name: クリングルファーマ
+  en_name: Kringle Pharma
+  partners: []
+  pipeline:
+    - drug: KP-100IT (HGF)
+      indication: spinal cord injury
+      phase: Phase 3
+    - drug: KP-100IT
+      indication: ALS
+      phase: Phase 2
+  keywords: ["Kringle Pharma", "HGF protein"]
+
+"4888":
+  name: ステラファーマ
+  en_name: Stella Pharma
+  partners: []
+  pipeline:
+    - drug: Borofalan (BNCT)
+      indication: head and neck cancer
+      phase: Approved (Japan)
+    - drug: Borofalan
+      indication: brain tumor
+      phase: Phase 3
+  keywords: ["Stella Pharma", "borofalan", "BNCT"]
+
+"4891":
+  name: ティムス
+  en_name: TIMS
+  partners: []
+  pipeline:
+    - drug: TMS-007
+      indication: acute ischemic stroke
+      phase: Phase 2
+  keywords: ["TIMS", "TMS-007"]
+
+"4894":
+  name: クオリプス
+  en_name: Qualips
+  partners: []
+  pipeline:
+    - drug: iPS-derived cardiomyocyte sheet
+      indication: heart failure
+      phase: Phase 1
+  keywords: ["Qualips", "iPS cardiomyocyte"]
+
+# === プライム・バイオ（500円以下になることがある） ===
+
+"4565":
+  name: ネクセラファーマ（旧そーせい）
+  en_name: Sosei Heptares
+  partners:
+    - name: Pfizer
+      sec_cik: "78003"
+    - name: Neurocrine Biosciences
+      sec_cik: "914475"
+    - name: AbbVie
+      sec_cik: "1551152"
+  pipeline:
+    - drug: HTL-18318
+      indication: Alzheimer's
+      phase: Phase 2
+    - drug: NBI-1065846
+      indication: schizophrenia
+      phase: Phase 2
+  keywords: ["Sosei Heptares", "Sosei Group", "HTL-18318", "NBI-1065846"]
+
+"4568":
+  name: 第一三共
+  en_name: Daiichi Sankyo
+  partners:
+    - name: AstraZeneca
+      sec_cik: "901832"
+    - name: Merck (MSD)
+      sec_cik: "310158"
+  pipeline:
+    - drug: Enhertu (DS-8201)
+      indication: breast/lung cancer
+      phase: Approved (Global)
+    - drug: Dato-DXd (DS-1062)
+      indication: NSCLC
+      phase: Phase 3
+    - drug: DS-7300
+      indication: solid tumors
+      phase: Phase 2
+  keywords: ["Daiichi Sankyo", "Enhertu", "DS-8201", "Dato-DXd"]
+
+"2160":
+  name: ジーエヌアイグループ
+  en_name: GNI Group
+  partners: []
+  pipeline:
+    - drug: Pirfenidone (Etuary)
+      indication: pulmonary fibrosis
+      phase: Approved (China/Japan)
+    - drug: F351
+      indication: liver fibrosis
+      phase: Phase 3
+  keywords: ["GNI Group", "Cullgen", "F351", "pirfenidone"]
+
+# === 非バイオだが海外展開（500円以下ターゲット） ===
+
+"3993":
+  name: ＰＫＳＨＡ　Ｔｅｃｈｎｏｌｏｇｙ
+  en_name: PKSHA Technology
+  partners: []
+  pipeline: []
+  keywords: ["PKSHA Technology"]
+  note: AI/NLP企業。海外展開・提携ニュースを監視
+
+# このファイルは手動管理。IR検出時にLLMで自動追加候補を提案する仕組みを別途実装
+# 更新方法: 有報の「事業の内容」「提携契約」セクション、各社IRページから
