@@ -32,11 +32,27 @@ warn_c = COLORS["caution"]
 
 # --- サイドバー ---
 with st.sidebar:
-    st.markdown("""
-    **方針:** グロース市場 · 低価格帯 · 高ボラ厳選
-    下値限定 × 上値大の非対称構造をメインに
-    IR/需給/テーマ/大口のシグナルを全自動検知
-    """)
+    # 市場環境（リアルタイム）
+    from src.strategy.screener import check_market_environment
+    _mkt = check_market_environment()
+    _mkt_cond = _mkt.get("condition", "unknown")
+    _mkt_icons = {
+        "shock": "🔴", "crash": "💥", "gradual_decline": "⚠",
+        "down": "🟠", "flat": "🟡", "up": "🟢", "healthy": "🟢", "surge": "🟢",
+    }
+    _mkt_icon = _mkt_icons.get(_mkt_cond, "⚪")
+    st.markdown(f"{_mkt_icon} **{_mkt.get('description', '不明')}**")
+
+    # 季節情報
+    _month = _mkt.get("month", 0)
+    _month_info = {
+        1: "1月 好調（89%）", 2: "2月 普通", 3: "3月 期末⚠ gf+bot15+RSI限定",
+        4: "4月 好調（85%）", 5: "5月 普通", 6: "6月 好調（86%）",
+        7: "7月 やや注意", 8: "8月 好調（86%）", 9: "9月 休み推奨🔴",
+        10: "10月 普通", 11: "11月 普通", 12: "12月 まあまあ（60%）",
+    }
+    st.caption(_month_info.get(_month, ""))
+
     st.markdown("---")
     run = st.button("スキャン実行", type="primary", use_container_width=True)
 
