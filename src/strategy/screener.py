@@ -728,6 +728,18 @@ def screen_stocks(
             else:
                 r["ret_5d"] = 0
 
+            # RSI反転（下げ切り確認。80%コンボ+RSI反転+季節除外=81%）
+            r["rsi_turning"] = False
+            r["rsi_value"] = 50
+            if df is not None and len(df) >= 16:
+                _delta = df['Close'].diff()
+                _gain = _delta.clip(lower=0).rolling(14).mean()
+                _loss = (-_delta.clip(upper=0)).rolling(14).mean()
+                _rs = _gain / (_loss + 1e-10)
+                _rsi = 100 - (100 / (1 + _rs))
+                r["rsi_value"] = float(_rsi.iloc[-1])
+                r["rsi_turning"] = float(_rsi.iloc[-1]) > float(_rsi.iloc[-2])
+
             # 理由テキスト
             r["reason"] = build_reason(
                 {"is_bottom": r["is_bottom"], "volume_anomaly": r["volume_anomaly"],
@@ -811,12 +823,21 @@ def screen_stocks(
         if r.get("has_vacuum"):
             score += 15
 
-        # --- 直近急落（10年検証: ret5dn8で81%。80%コンボの核）---
+        # --- 直近急落 + RSI反転（80%コンボ+RSI反転+季節除外=81%）---
         ret5 = r.get("ret_5d", 0)
+        rsi_turn = r.get("rsi_turning", False)
+        rsi_val = r.get("rsi_value", 50)
+
         if ret5 <= -8:
-            score += 35   # 5日で-8%以上急落。80%コンボの必須条件
+            score += 35   # 急落。80%コンボの核
+            if rsi_turn:
+                score += 20  # RSI反転で下げ切り確認（+12% lift）
+            if 25 <= rsi_val < 30 and rsi_turn:
+                score += 10  # RSI25-30で反転が最強（84%）
         elif ret5 <= -5:
             score += 20
+            if rsi_turn:
+                score += 10
         elif ret5 <= -3:
             score += 10
 
@@ -881,12 +902,17 @@ def screen_stocks(
         ret5 = r.get("ret_5d", 0)
         is_low500 = r.get("current_price", 9999) < 500
 
+        rsi_turn = r.get("rsi_turning", False)
+
         if mkt == "crash":
             r["tier"] = "CRASH"
             r["tier_desc"] = "暴落反発（88%）"
+        elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20 and rsi_turn and not market_env.get("is_danger_month"):
+            r["tier"] = "S+"
+            r["tier_desc"] = "急落+RSI反転+安全月（81%、最高確度）"
         elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20:
             r["tier"] = "S"
-            r["tier_desc"] = "急落反発（81%、10年n=216）"
+            r["tier_desc"] = "急落反発（70%、10年n=246）"
         elif pp < 15 and gf >= 0.3:
             r["tier"] = "T1"
             r["tier_desc"] = "bot15+IR銘柄（77%）"

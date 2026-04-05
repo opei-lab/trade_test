@@ -137,6 +137,14 @@ CONVICTION_CHECKS = [
         "description": "日次ボラ4%以上。10年検証: lift+8%。動いてる銘柄が勝つ",
         "check": lambda ctx: ctx.get("daily_vol", 0) >= 4,
     },
+    {
+        "id": "crash_rsi_turn",
+        "name": "急落+下げ切り",
+        "weight": 5,
+        "category": "タイミング",
+        "description": "直近5日-8%急落+RSI反転。80%コンボの核。81%勝率",
+        "check": lambda ctx: ctx.get("ret_5d", 0) <= -8 and ctx.get("rsi_turning", False),
+    },
 
     # === 銘柄特性 ===
     {
@@ -217,6 +225,8 @@ def calc_conviction(result: dict) -> dict:
         "gap_frequency": result.get("gap_frequency", 0),
         "bounce_from_low": result.get("bounce_from_low", 0),
         "daily_vol": result.get("daily_vol", 0),
+        "rsi_turning": result.get("rsi_turning", False),
+        "ret_5d": result.get("ret_5d", 0),
     }
 
     passed = []
