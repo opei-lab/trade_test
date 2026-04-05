@@ -392,6 +392,12 @@ def check_market_environment() -> dict:
         ret_20d = float((c_last / float(close.iloc[-21]) - 1) * 100) if len(close) >= 21 and float(close.iloc[-21]) > 0 else 0
         ret_60d = float((c_last / float(close.iloc[-61]) - 1) * 100) if len(close) >= 61 and float(close.iloc[-61]) > 0 else 0
 
+        # 1日の急落チェック
+        ret_1d = float((c_last / float(close.iloc[-2]) - 1) * 100) if len(close) >= 2 else 0
+
+        if ret_1d < -5:
+            return {"condition": "shock", "tradeable": False,
+                    "description": f"ショック発生（日経/グロース1日{ret_1d:+.1f}%）。様子見推奨。翌日以降にcrash戦略検討"}
         if ret_20d < -10:
             return {"condition": "crash", "tradeable": True,
                     "description": f"市場暴落中（20日{ret_20d:+.1f}%）。crash戦略適用（nosq+lowで88%勝率）"}
