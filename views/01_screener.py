@@ -375,6 +375,12 @@ if cached:
                     risk_adj -= 15
                     risk_parts.append(f"PER割高({sector_name})-15")
 
+            # 季節ペナルティ（3月/9月は80%コンボでも29%）
+            mkt_env = r.get("market_env", {})
+            if isinstance(mkt_env, dict) and mkt_env.get("is_danger_month"):
+                risk_adj -= 20
+                risk_parts.append(f"{mkt_env.get('month','')}月期末-20")
+
             est_wr = min(95, max(20, tier_wr + ir_lift + risk_adj))
 
             # 内訳表示

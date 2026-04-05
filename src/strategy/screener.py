@@ -440,6 +440,13 @@ def screen_stocks(
 
     # crash時はむしろチャンス（勝率88%）。除外せず戦略を切り替える
     # 横ばいは厳選モード（T1のみ）
+    # 季節フィルタ（3月/9月は期末売りで反発が効かない。勝率29%）
+    from datetime import date as _date
+    _month = _date.today().month
+    market_env["month"] = _month
+    market_env["is_danger_month"] = _month in (3, 9)
+    if market_env["is_danger_month"]:
+        market_env["description"] += f"　⚠{_month}月は期末売り月（勝率-20%）"
 
     # ============================================================
     # Stage 1: 環境フィルタ（全銘柄。超高速）
@@ -853,6 +860,10 @@ def screen_stocks(
         if mkt == "flat":
             if not (pp < 15 and (phase == "C" or gf >= 0.3)):
                 score -= 10
+
+        # --- 季節ペナルティ（3月/9月: 期末売りで反発が効かない）---
+        if market_env.get("is_danger_month"):
+            score -= 15
 
         return score
 
