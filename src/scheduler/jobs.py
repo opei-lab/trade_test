@@ -14,10 +14,10 @@ def daily_scan():
     """日次スクリーニングを実行する。"""
     print(f"[{datetime.now()}] Daily scan started")
 
-    # グロース市場をスキャン
-    stocks = fetch_stocklist()
-    growth = stocks[stocks["market"].str.contains("グロース", na=False)]
-    codes = growth["code"].tolist()[:200]
+    # 全市場（プライム+スタンダード+グロース）をスキャン
+    from src.data.stocklist import get_low_price_stocks
+    stocks = get_low_price_stocks()
+    codes = stocks["code"].tolist()
 
     results = screen_stocks(codes, min_score=0)
 

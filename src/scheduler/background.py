@@ -45,7 +45,7 @@ def _run_scan():
         from src.data.database import init_db
         init_db()
 
-        from src.data.stocklist import get_growth_stocks
+        from src.data.stocklist import get_low_price_stocks
         from src.strategy.screener import screen_stocks
         from src.strategy.deep_analysis import run_deep_analysis
         from src.strategy.cache import save_screen_results
@@ -55,7 +55,7 @@ def _run_scan():
 
         # === 1. フルスキャン ===
         _scan_status["progress"] = "銘柄リスト取得中..."
-        stocks = get_growth_stocks()
+        stocks = get_low_price_stocks()
         all_codes = stocks["code"].tolist()
         name_map = dict(zip(stocks["code"].astype(str), stocks["name"]))
         total = len(all_codes)
@@ -81,7 +81,7 @@ def _run_scan():
             results = run_deep_analysis(candidates, progress_callback=on_progress_2)
             logging.info(f"Stage 2: {len(results)} results")
 
-            save_screen_results("グロース市場", results)
+            save_screen_results("全市場500円以下", results)
             update_from_screening(results)
 
             for r in results[:10]:
@@ -111,13 +111,33 @@ def _run_scan():
         except Exception:
             pass
 
-        # === 4. ゴールデンルール再検証（週1回） ===
+        # === 4. 海外情報チェック（毎回。FDA+EDGAR+ClinicalTrials） ===
+        _scan_status["progress"] = "海外情報チェック中..."
+        try:
+            from src.data.overseas.monitor import run_overseas_check
+            overseas = run_overseas_check(full=False)  # FDA+EDGAR+CT。fullは週1
+            if overseas.get("high_count", 0) > 0:
+                logging.warning(f"🚨 Overseas high-impact: {overseas['high_count']} alerts")
+                for a in overseas.get("high_impact", [])[:5]:
+                    logging.warning(f"  {a['code']} {a['company']}: {a.get('title', '')[:60]}")
+        except Exception as e:
+            logging.warning(f"Overseas check failed: {e}")
+
+        # === 5. ゴールデンルール再検証（週1回） ===
         try:
             from src.analysis.backtest_validator import load_validated_rules, run_validation_backtest, find_golden_rules
             rules = load_validated_rules()
             last_gen = rules.get("generated_at", "")
             days_since = (date.today() - date.fromisoformat(last_gen)).days if last_gen else 999
             if days_since >= 7:
+                # 週1: 海外フルチェック（News+PubMed含む）
+                try:
+                    from src.data.overseas.monitor import run_overseas_check
+                    _scan_status["progress"] = "海外フルチェック中..."
+                    run_overseas_check(full=True)
+                except Exception:
+                    pass
+
                 _scan_status["progress"] = "ルール再検証中..."
                 logging.info("Starting weekly rule recalibration")
                 bt_df = run_validation_backtest(

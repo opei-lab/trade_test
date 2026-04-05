@@ -167,6 +167,28 @@ def deep_analyze(candidate: dict) -> dict:
         result["ir_score"] = 0
         result["ir_grade"] = "D"
 
+    # --- 海外先行情報（FDA/EDGAR/ClinicalTrials.gov） ---
+    try:
+        from src.data.overseas.monitor import get_alerts_for_code
+        overseas = get_alerts_for_code(code)
+        result["overseas_alerts"] = overseas
+        high_overseas = [a for a in overseas if a.get("impact", "").startswith("high")]
+        if high_overseas:
+            result["overseas_high"] = high_overseas
+            # 海外ポジティブ → IR加点
+            for a in high_overseas:
+                if a["impact"] == "high_positive":
+                    result["ir_score"] = min(100, result.get("ir_score", 0) + 30)
+                    result.setdefault("ir_reasons", []).append(
+                        f"海外先行: {a.get('source', '')} - {a.get('title', '')[:50]}"
+                    )
+                elif a["impact"] == "high_negative":
+                    result.setdefault("ir_negative", []).append(
+                        f"海外リスク: {a.get('source', '')} - {a.get('title', '')[:50]}"
+                    )
+    except Exception:
+        result["overseas_alerts"] = []
+
     # === 早期打ち切り: ストーリーなし or 希薄化リスク → 残りの重い処理をスキップ ===
     if not result.get("has_story", True):
         result["skip_reason"] = "ストーリーなし（IR/ニュースに特色がない）"
@@ -308,7 +330,7 @@ def deep_analyze(candidate: dict) -> dict:
             )
             result["staged_targets"] = staged
         else:
-            from src.strategy.screener import find_price_targets
+            from src.strategy.screen_helpers import find_price_targets
             df = fetch_price(code, period_days=365)
             if not df.empty:
                 levels = find_price_targets(df)

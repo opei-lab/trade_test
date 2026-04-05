@@ -67,7 +67,7 @@ if "scan_results" not in st.session_state:
 if st.session_state.scan_results is None:
     _cache_info = get_cache_info()
     if _cache_info:
-        _cached = load_screen_cache("グロース市場")
+        _cached = load_screen_cache("全市場500円以下")
         if _cached:
             st.session_state.scan_results = _cached
             st.sidebar.caption(f"前回スキャン: {_cache_info.get('timestamp', '')[:16]} ({_cache_info.get('count', 0)}件)")
@@ -91,7 +91,7 @@ if run:
     st.markdown("### スキャン中...")
 
     from src.strategy.cache import save_screen_results as _save
-    from src.data.stocklist import get_growth_stocks
+    from src.data.stocklist import get_low_price_stocks
     from src.strategy.screener import screen_stocks
     from src.strategy.deep_analysis import run_deep_analysis
     from src.data.watchlist import update_from_screening as _update_wl, refresh_watchlist as _refresh_wl
@@ -104,7 +104,7 @@ if run:
     except Exception:
         pass
 
-    _stocks = get_growth_stocks()
+    _stocks = get_low_price_stocks()
 
     _codes_list = _stocks["code"].tolist()
     _name_map = dict(zip(_stocks["code"].astype(str), _stocks["name"]))
@@ -144,7 +144,7 @@ if run:
         except Exception:
             pass
 
-        _save("グロース市場", _results)
+        _save("全市場500円以下", _results)
         _update_wl(_results)  # 自動ウォッチ追加+既存追跡更新
 
         # ウォッチ中の全銘柄を追跡更新
@@ -206,7 +206,7 @@ if active or deviated:
 # session_stateにスキャン結果を保持
 cached = st.session_state.scan_results
 if cached is None:
-    cached = load_screen_cache("グロース市場")
+    cached = load_screen_cache("全市場500円以下")
 cache_info = get_cache_info()
 
     # (スキャン処理はページ先頭のif runブロックで実行済み)
@@ -265,11 +265,11 @@ if cached:
             tier = r.get("tier", "T3")
             tier_info = {
                 "CRASH": ("💥", "暴落反発", "88%"),
-                "S+":    ("⭐", "急落+下げ切り確認", "81%"),
+                "S+":    ("⭐", "急落+RSI反転", "92%"),
                 "S":     ("⭐", "急落反発", "70%"),
                 "T1":    ("🔴", "最高確度", "77%"),
-                "T1b":   ("🟠", "高確度", "75%"),
-                "T1c":   ("🟠", "IR銘柄", "69%"),
+                "T1b":   ("🟠", "高確度", "72%"),
+                "T1c":   ("🟠", "IR銘柄", "71%"),
                 "T2":    ("🟡", "安定", "68%"),
                 "T3":    ("⚪", "標準", "60%"),
             }.get(tier, ("⚪", "標準", "60%"))
@@ -337,6 +337,19 @@ if cached:
             if ir_lines:
                 st.caption(" | ".join(ir_lines))
 
+            # === 海外先行情報（あれば）===
+            overseas = r.get("overseas_alerts", [])
+            overseas_high = r.get("overseas_high", [])
+            if overseas_high:
+                for oa in overseas_high[:3]:
+                    _oa_icon = "🚨" if oa["impact"] == "high_positive" else "⚠"
+                    st.markdown(f"{_oa_icon} **海外先行**: {oa.get('source', '')} — {oa.get('title', '')[:80]}")
+            elif overseas:
+                with st.expander(f"海外情報 ({len(overseas)}件)"):
+                    for oa in overseas[:5]:
+                        _oa_i = "+" if "positive" in oa.get("impact", "") else "-" if "negative" in oa.get("impact", "") else "·"
+                        st.caption(f"[{_oa_i}] {oa.get('source', '')}: {oa.get('title', oa.get('description', ''))[:70]}")
+
             # === シナリオ（あれば）===
             scenario_text = r.get("scenario_text", "")
             if scenario_text:
@@ -348,7 +361,7 @@ if cached:
             dec_score = df_factors.get("decision_score", 0) if isinstance(df_factors, dict) else 0
 
             # 推定勝率 = Tier勝率 + IR lift + リスク要因
-            tier_wr = {"CRASH": 88, "S+": 81, "S": 70, "T1": 77, "T1b": 75, "T1c": 69, "T2": 68, "T3": 60}.get(tier, 55)
+            tier_wr = {"CRASH": 88, "S+": 92, "S": 70, "T1": 77, "T1b": 72, "T1c": 71, "T2": 68, "T3": 60}.get(tier, 55)
 
             # IR lift（バックテスト検証: IR良で+34%）
             ir_lift = 0
@@ -395,9 +408,9 @@ if cached:
             # 季節ペナルティ
             mkt_env = r.get("market_env", {})
             if isinstance(mkt_env, dict):
-                if mkt_env.get("is_danger_month"):  # 9月
-                    risk_adj -= 25
-                    risk_parts.append("9月期末-25")
+                if mkt_env.get("is_september"):  # 9月（勝てるフィルタのみ通過済み）
+                    risk_adj -= 10
+                    risk_parts.append("9月厳選モード-10")
                 elif mkt_env.get("is_march"):  # 3月
                     gf_val = r.get("gap_frequency", 0)
                     pp_val = r.get("price_position", 50)

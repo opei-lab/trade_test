@@ -25,7 +25,7 @@ from src.analysis.stage_change import detect_financial_stage_change, format_stag
 from src.analysis.event_proximity import find_upcoming_events, calc_event_proximity_score
 from src.analysis.scenario import build_scenario
 from src.analysis.market_structure import analyze_full_structure, format_structure_report
-from src.strategy.screener import find_price_targets, calc_entry_exit
+from src.strategy.screen_helpers import find_price_targets, calc_entry_exit
 from src.strategy.report import generate_report
 from src.strategy.conviction import calc_conviction
 from src.strategy.multi_trade import generate_multi_trade_plan, format_trade_plan

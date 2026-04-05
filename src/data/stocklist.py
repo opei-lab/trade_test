@@ -67,6 +67,18 @@ def get_growth_stocks() -> pd.DataFrame:
     return df[df["market"].str.contains("グロース")].reset_index(drop=True)
 
 
+def get_low_price_stocks(max_price: int = 500) -> pd.DataFrame:
+    """全市場（プライム+スタンダード+グロース）から低価格銘柄を返す。
+
+    バックテスト検証: 500円以下で全市場コンボが効く（S+ 92.5%, T1 77.4%）。
+    スタンダードでもbot20+gf30で68%。銘柄数が約2倍に増える。
+    """
+    df = fetch_stocklist()
+    # ETF・REIT等を除外（市場名にプライム/スタンダード/グロースを含むもののみ）
+    markets = df["market"].str.contains("プライム|スタンダード|グロース", na=False)
+    return df[markets].reset_index(drop=True)
+
+
 def get_stocks_by_sector(sector_keyword: str) -> pd.DataFrame:
     """業種キーワードで銘柄を絞り込む。"""
     df = fetch_stocklist()

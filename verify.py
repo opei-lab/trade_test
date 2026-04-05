@@ -6,7 +6,7 @@
 from src.data.price import fetch_price
 from src.analysis.supply import calc_supply_score
 from src.analysis.manipulation.detector import detect_phase
-from src.strategy.screener import find_price_targets, calc_entry_exit
+from src.strategy.screen_helpers import find_price_targets, calc_entry_exit
 from src.analysis.resistance import detect_volume_vacuum
 from src.strategy.conviction import calc_conviction
 
