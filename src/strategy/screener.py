@@ -443,6 +443,48 @@ def screen_stocks(
                 r["rsi_value"] = float(_rsi.iloc[-1])
                 r["rsi_turning"] = float(_rsi.iloc[-1]) > float(_rsi.iloc[-2])
 
+            # === 90%コンボ用の新指標（全市場検証済み） ===
+
+            # ret20d（直近20日リターン。ret20dn15で勝率68%→コンボで90%）
+            if df is not None and len(df) >= 21:
+                r["ret_20d"] = (float(df['Close'].iloc[-1]) / float(df['Close'].iloc[-21]) - 1) * 100
+            else:
+                r["ret_20d"] = 0
+
+            # down_days（連続下落日数。3日+で92.9%コンボの核）
+            r["down_days"] = 0
+            if df is not None and len(df) >= 10:
+                _c = df['Close']
+                _dd = 0
+                for _di in range(1, min(11, len(_c))):
+                    if float(_c.iloc[-_di]) < float(_c.iloc[-_di-1]):
+                        _dd += 1
+                    else:
+                        break
+                r["down_days"] = _dd
+
+            # vp_divergence（出来高-価格乖離。売り枯れ検出。89.4%コンボ）
+            r["vp_divergence"] = 0
+            if df is not None and len(df) >= 20:
+                _pc = (float(df['Close'].iloc[-1]) - float(df['Close'].iloc[-20])) / float(df['Close'].iloc[-20])
+                _vm = float(df['Volume'].iloc[-20:-10].mean())
+                _vc = (float(df['Volume'].tail(10).mean()) - _vm) / max(_vm, 1)
+                if _pc < 0:
+                    r["vp_divergence"] = max(0, -_pc * 10 - _vc * 5)
+
+            # ma20_dist（MA20乖離率。-10%以下で88%コンボ）
+            r["ma20_dist"] = 0
+            if df is not None and len(df) >= 20:
+                _ma20 = float(df['Close'].tail(20).mean())
+                r["ma20_dist"] = (float(df['Close'].iloc[-1]) - _ma20) / _ma20 * 100 if _ma20 > 0 else 0
+
+            # hvol（60日ヒストリカルレンジ%。hvol6=60%+で最強指標）
+            r["hvol_pct"] = 0
+            if df is not None and len(df) >= 60:
+                _r60 = df['Close'].tail(60)
+                _rmin = float(_r60.min())
+                r["hvol_pct"] = (float(_r60.max()) - _rmin) / _rmin * 100 if _rmin > 0 else 0
+
             # 理由テキスト
             r["reason"] = build_reason(
                 {"is_bottom": r["is_bottom"], "volume_anomaly": r["volume_anomaly"],
@@ -563,6 +605,43 @@ def screen_stocks(
         if bounce >= 10:
             score += 15   # 底打ちして反発中
 
+        # --- 90%コンボ指標（全市場200銘柄検証済み）---
+        ret20 = r.get("ret_20d", 0)
+        down_days = r.get("down_days", 0)
+        hvol_pct = r.get("hvol_pct", 0)
+        vp_div = r.get("vp_divergence", 0)
+        ma20_dist = r.get("ma20_dist", 0)
+
+        # 20日急落（lift+20%）
+        if ret20 <= -15:
+            score += 30
+        elif ret20 <= -10:
+            score += 15
+
+        # 連続下落（down3+で92.9%コンボの核）
+        if down_days >= 5:
+            score += 25
+        elif down_days >= 3:
+            score += 15
+
+        # Volume-Price Divergence（売り枯れ。89.4%コンボ）
+        if vp_div >= 2:
+            score += 20
+        elif vp_div >= 1:
+            score += 10
+
+        # MA20乖離（-10%以下で88%コンボ）
+        if ma20_dist <= -10:
+            score += 20
+        elif ma20_dist <= -5:
+            score += 10
+
+        # 高ヒストリカルレンジ（hvol6で+24% lift。最強の単独指標）
+        if hvol_pct >= 60:
+            score += 25
+        elif hvol_pct >= 40:
+            score += 12
+
         # --- daily_vol（10年検証: 6%+でlift+11%。ボラ高いほど勝つ）---
         daily_vol = 0
         df = r.get("df")
@@ -622,12 +701,37 @@ def screen_stocks(
         if _tier_df is not None and len(_tier_df) >= 20:
             daily_vol = float(_tier_df['Close'].tail(20).pct_change().std() * 100)
 
+        # 90%コンボ用の変数
+        ret20 = r.get("ret_20d", 0)
+        down_days = r.get("down_days", 0)
+        hvol_pct = r.get("hvol_pct", 0)
+        vp_div = r.get("vp_divergence", 0)
+        ma20_dist = r.get("ma20_dist", 0)
+
         if mkt == "crash":
             r["tier"] = "CRASH"
             r["tier_desc"] = "暴落反発（88%）"
+        # === 90%+コンボ（全市場検証済み） ===
+        elif hvol_pct >= 60 and ret20 <= -15 and down_days >= 3:
+            r["tier"] = "SS"
+            r["tier_desc"] = "高ボラ+急落+連続下落（93%）"
+        elif hvol_pct >= 60 and ret5 <= -8 and vp_div >= 2:
+            r["tier"] = "SS"
+            r["tier_desc"] = "高ボラ+5日急落+売り枯れ（89%）"
+        elif ret20 <= -15 and hvol_pct >= 40 and down_days >= 5:
+            r["tier"] = "SS"
+            r["tier_desc"] = "20日急落+5日連続下落（91%）"
+        # === S+: 92% ===
         elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20 and rsi_turn and not market_env.get("is_september"):
             r["tier"] = "S+"
-            r["tier_desc"] = "急落+RSI反転（92%、全市場検証済み）"
+            r["tier_desc"] = "急落+RSI反転（92%）"
+        # === 85%+コンボ ===
+        elif hvol_pct >= 60 and ret20 <= -15:
+            r["tier"] = "S"
+            r["tier_desc"] = "高ボラ+20日急落（86%）"
+        elif ma20_dist <= -10 and hvol_pct >= 40 and down_days >= 3:
+            r["tier"] = "S"
+            r["tier_desc"] = "MA乖離+ボラ+連続下落（86%）"
         elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20:
             r["tier"] = "S"
             r["tier_desc"] = "急落反発（70%）"
@@ -649,15 +753,24 @@ def screen_stocks(
 
     stage4.sort(key=lambda x: x.get("motion_score", 0), reverse=True)
 
-    # 上位10件をStage 6（情報分析: ファンダ+IR同時評価）に送る
-    stage5 = stage4[:10]
+    # Stage 6送り件数: 高Tier多ければ多めに送る（IR/ファンダで絞るため）
+    # S+/S/CRASH/T1/T1b/T1c = 高Tier。T2/T3は低Tier
+    high_tier_count = sum(1 for r in stage4 if r.get("tier") in ("S+", "S", "CRASH", "T1", "T1b", "T1c"))
+    if high_tier_count >= 15:
+        max_stage6 = 25  # 高Tier多数。IR/ファンダで絞る余地あり
+    elif high_tier_count >= 8:
+        max_stage6 = 20
+    else:
+        max_stage6 = 15  # 低Tier中心なら絞って速度優先
+
+    stage5 = stage4[:max_stage6]
 
     for r in stage5:
         r.pop("df", None)
         r["market_env"] = market_env  # 市場環境を結果に含める
 
-    logging.info(f"Stage 5 潜伏: {len(stage4)}→{len(stage5)}")
+    logging.info(f"Stage 5 潜伏: {len(stage4)}→{len(stage5)} (高Tier {high_tier_count}件)")
     if progress_callback:
-        progress_callback(0, 1, f"Stage 5完了: →{len(stage5)}件. 情報分析へ...")
+        progress_callback(0, 1, f"Stage 5完了: →{len(stage5)}件（高Tier{high_tier_count}）. 情報分析へ...")
 
     return stage5

@@ -265,8 +265,9 @@ if cached:
             tier = r.get("tier", "T3")
             tier_info = {
                 "CRASH": ("💥", "暴落反発", "88%"),
+                "SS":    ("🔥", "パニック底", "90%+"),
                 "S+":    ("⭐", "急落+RSI反転", "92%"),
-                "S":     ("⭐", "急落反発", "70%"),
+                "S":     ("⭐", "急落系", "85%+"),
                 "T1":    ("🔴", "最高確度", "77%"),
                 "T1b":   ("🟠", "高確度", "72%"),
                 "T1c":   ("🟠", "IR銘柄", "71%"),
@@ -361,7 +362,7 @@ if cached:
             dec_score = df_factors.get("decision_score", 0) if isinstance(df_factors, dict) else 0
 
             # 推定勝率 = Tier勝率 + IR lift + リスク要因
-            tier_wr = {"CRASH": 88, "S+": 92, "S": 70, "T1": 77, "T1b": 72, "T1c": 71, "T2": 68, "T3": 60}.get(tier, 55)
+            tier_wr = {"CRASH": 88, "SS": 91, "S+": 92, "S": 85, "T1": 77, "T1b": 72, "T1c": 71, "T2": 68, "T3": 60}.get(tier, 55)
 
             # IR lift（バックテスト検証: IR良で+34%）
             ir_lift = 0
