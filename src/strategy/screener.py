@@ -469,13 +469,18 @@ def screen_stocks(
 
     # crash時はむしろチャンス（勝率88%）。除外せず戦略を切り替える
     # 横ばいは厳選モード（T1のみ）
-    # 季節フィルタ（3月/9月は期末売りで反発が効かない。勝率29%）
+    # 季節フィルタ
+    # 3月: gf30+bot15+RSI反転限定で70%。条件付きで稼働
+    # 9月: 何をやっても50%以下。休み推奨
     from datetime import date as _date
     _month = _date.today().month
     market_env["month"] = _month
-    market_env["is_danger_month"] = _month in (3, 9)
-    if market_env["is_danger_month"]:
-        market_env["description"] += f"　⚠{_month}月は期末売り月（勝率-20%）"
+    market_env["is_danger_month"] = _month == 9  # 9月のみ休み
+    market_env["is_march"] = _month == 3  # 3月は条件付き
+    if _month == 9:
+        market_env["description"] += "　⚠9月は期末売り。何をやっても50%以下。休み推奨"
+    elif _month == 3:
+        market_env["description"] += "　⚠3月は期末。gf30+bot15+RSI反転条件のみ推奨（70%）"
 
     # ============================================================
     # Stage 1: 環境フィルタ（全銘柄。超高速）
@@ -911,9 +916,12 @@ def screen_stocks(
             if not (pp < 15 and (phase == "C" or gf >= 0.3)):
                 score -= 10
 
-        # --- 季節ペナルティ（3月/9月: 期末売りで反発が効かない）---
-        if market_env.get("is_danger_month"):
-            score -= 15
+        # --- 季節ペナルティ ---
+        if market_env.get("is_danger_month"):  # 9月
+            score -= 20
+        elif market_env.get("is_march"):  # 3月はgf30+bot15+RSI反転以外を減点
+            if not (gf >= 0.3 and pp < 15 and r.get("rsi_turning")):
+                score -= 15
 
         return score
 
