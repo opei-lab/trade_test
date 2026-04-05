@@ -395,24 +395,47 @@ def check_market_environment() -> dict:
         # 1日の急落チェック
         ret_1d = float((c_last / float(close.iloc[-2]) - 1) * 100) if len(close) >= 2 else 0
 
+        # MA位置
+        ma20 = float(close.rolling(20).mean().iloc[-1])
+        ma60 = float(close.rolling(60).mean().iloc[-1]) if len(close) >= 60 else ma20
+        above_ma20 = c_last > ma20
+        above_ma60 = c_last > ma60
+
+        # じわ下げ判定（MA両方下+60日マイナス=不作環境）
+        gradual_decline = not above_ma20 and not above_ma60 and ret_60d < -5
+
         if ret_1d < -5:
             return {"condition": "shock", "tradeable": False,
-                    "description": f"ショック発生（日経/グロース1日{ret_1d:+.1f}%）。様子見推奨。翌日以降にcrash戦略検討"}
+                    "description": f"ショック発生（1日{ret_1d:+.1f}%）。様子見推奨",
+                    "gradual_decline": False}
         if ret_20d < -10:
             return {"condition": "crash", "tradeable": True,
-                    "description": f"市場暴落中（20日{ret_20d:+.1f}%）。crash戦略適用（nosq+lowで88%勝率）"}
+                    "description": f"市場暴落中（20日{ret_20d:+.1f}%）。crash戦略適用",
+                    "gradual_decline": gradual_decline}
+        if gradual_decline:
+            return {"condition": "gradual_decline", "tradeable": True,
+                    "description": f"じわ下げ環境（MA20下+MA60下+60日{ret_60d:+.1f}%）。不作リスク。S+条件のみ推奨",
+                    "gradual_decline": True}
         elif ret_20d < -3:
             return {"condition": "down", "tradeable": True,
-                    "description": f"市場下落（20日{ret_20d:+.1f}%）。厳選モード"}
+                    "description": f"市場下落（20日{ret_20d:+.1f}%）。厳選モード",
+                    "gradual_decline": False}
+        elif above_ma20 and above_ma60 and ret_60d > 0:
+            return {"condition": "healthy", "tradeable": True,
+                    "description": f"市場健全（MA上+60日{ret_60d:+.1f}%）。通常運用OK",
+                    "gradual_decline": False}
         elif ret_20d > 10:
             return {"condition": "surge", "tradeable": True,
-                    "description": f"市場急騰（20日{ret_20d:+.1f}%）"}
+                    "description": f"市場急騰（20日{ret_20d:+.1f}%）",
+                    "gradual_decline": False}
         elif ret_20d > 3:
             return {"condition": "up", "tradeable": True,
-                    "description": f"市場上昇（20日{ret_20d:+.1f}%）"}
+                    "description": f"市場上昇（20日{ret_20d:+.1f}%）",
+                    "gradual_decline": False}
         else:
             return {"condition": "flat", "tradeable": True,
-                    "description": f"市場横ばい（20日{ret_20d:+.1f}%）"}
+                    "description": f"市場横ばい（20日{ret_20d:+.1f}%、60日{ret_60d:+.1f}%）",
+                    "gradual_decline": False}
     except Exception:
         return {"condition": "unknown", "tradeable": True, "description": "市場環境判定エラー"}
 
