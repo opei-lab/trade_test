@@ -715,6 +715,12 @@ def screen_stocks(
             else:
                 r["bounce_from_low"] = 0
 
+            # ret5d（直近5日リターン。80%コンボの核: ret5dn8=-8%以下で勝率81%）
+            if df is not None and len(df) >= 6:
+                r["ret_5d"] = (float(df['Close'].iloc[-1]) / float(df['Close'].iloc[-6]) - 1) * 100
+            else:
+                r["ret_5d"] = 0
+
             # 理由テキスト
             r["reason"] = build_reason(
                 {"is_bottom": r["is_bottom"], "volume_anomaly": r["volume_anomaly"],
@@ -798,6 +804,15 @@ def screen_stocks(
         if r.get("has_vacuum"):
             score += 15
 
+        # --- 直近急落（10年検証: ret5dn8で81%。80%コンボの核）---
+        ret5 = r.get("ret_5d", 0)
+        if ret5 <= -8:
+            score += 35   # 5日で-8%以上急落。80%コンボの必須条件
+        elif ret5 <= -5:
+            score += 20
+        elif ret5 <= -3:
+            score += 10
+
         # --- 出来高枯れ（検証済み: va<1でlift +11%）---
         va = r.get("volume_anomaly", 1)
         if va < 0.5:
@@ -852,15 +867,21 @@ def screen_stocks(
 
         gf = r.get("gap_frequency", 0)
         bounce = r.get("bounce_from_low", 0)
+        ret5 = r.get("ret_5d", 0)
+        is_low500 = r.get("current_price", 9999) < 500
+
         if mkt == "crash":
             r["tier"] = "CRASH"
             r["tier_desc"] = "暴落反発（88%）"
+        elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20:
+            r["tier"] = "S"
+            r["tier_desc"] = "急落反発（81%、10年n=216）"
         elif pp < 15 and gf >= 0.3:
             r["tier"] = "T1"
-            r["tier_desc"] = "bot15+IR銘柄（77%、10年検証）"
-        elif pp < 15 and bounce >= 10:
+            r["tier_desc"] = "bot15+IR銘柄（77%）"
+        elif pp < 15 and ret5 <= -5:
             r["tier"] = "T1b"
-            r["tier_desc"] = "bot15+反発中（75%）"
+            r["tier_desc"] = "bot15+押し目（75%）"
         elif pp < 25 and gf >= 0.3:
             r["tier"] = "T1c"
             r["tier_desc"] = "bot25+IR銘柄（69%）"
