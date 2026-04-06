@@ -140,16 +140,28 @@ def screen_stocks(
     # 横ばいは厳選モード（T1のみ）
     # 季節フィルタ
     # 3月: gf30+bot15+RSI反転限定で70%。条件付きで稼働
-    # 9月: 何をやっても50%以下。休み推奨
+    # 月別戦略（網羅探索結果に基づく）
     from datetime import date as _date
     _month = _date.today().month
     market_env["month"] = _month
-    market_env["is_september"] = _month == 9  # 9月は厳選フィルタのみ
-    market_env["is_march"] = _month == 3  # 3月は条件付き
-    if _month == 9:
-        market_env["description"] += "　⚠9月: bot15+gf30+RSI反転のみ稼働（75%）。それ以外は見送り"
-    elif _month == 3:
-        market_env["description"] += "　⚠3月は期末。gf30+bot15+RSI反転条件のみ推奨（70%）"
+    _month_info = {
+        3: "🟢3月（ゴールデン）期末ドレッシング底。T1:97%",
+        4: "🟢4月 panic:90%, gf+bot:86%",
+        12: "🟢12月 節税売り底。gf_crash:96%",
+        9: "🔴9月 panic(77%)のみ。他は見送り",
+        10: "🔴10月 gf_crash(64%)のみ。厳選",
+        7: "🟡7月 gf_crash(73%)のみ",
+    }.get(_month)
+    if _month_info:
+        market_env["description"] += f"　{_month_info}"
+
+    # セクターマップ構築（セクター別勝率の適用に必要）
+    try:
+        from src.data.stocklist import fetch_stocklist
+        _sl = fetch_stocklist()
+        _sector_map = dict(zip(_sl["code"].astype(str) + ".T", _sl["sector"]))
+    except Exception:
+        _sector_map = {}
 
     # ============================================================
     # Stage 1: 環境フィルタ（全銘柄。超高速）
@@ -189,7 +201,8 @@ def screen_stocks(
                 continue
 
             stage1.append({"code": code, "df": df, "current": current,
-                            "avg_volume": avg_volume_20d, "avg_turnover": avg_turnover})
+                            "avg_volume": avg_volume_20d, "avg_turnover": avg_turnover,
+                            "sector": _sector_map.get(code, "")})
         except Exception:
             continue
 
@@ -327,6 +340,7 @@ def screen_stocks(
                 "market_gap": "none",
                 "dilution_risk_count": 0,
                 "stage_summary": "",
+                "sector": item.get("sector", ""),
             })
         except Exception:
             continue
@@ -714,9 +728,17 @@ def screen_stocks(
         elif daily_vol < 2:
             score -= 10  # 極低ボラはlift-9%
 
-        # --- 危険セクター ---
+        # --- セクター（網羅探索結果。食料品23%/銀行30%/卸売32%は致命的）---
         sector = r.get("sector", "")
-        if sector in ("Financial Services", "Consumer Defensive"):
+        if sector in ("食料品", "銀行業"):
+            score -= 50  # base 23-30%。ほぼ勝てない
+        elif sector in ("卸売業", "小売業"):
+            score -= 20  # base 32-37%
+        elif sector in ("精密機器", "金属製品"):
+            score += 15  # base 75-81%。セクター自体が強い
+        elif sector in ("建設業", "機械"):
+            score += 8   # base 57-59%
+        elif sector in ("Financial Services", "Consumer Defensive"):
             score -= 20
 
         # --- 横ばい市場: 厳選 ---
@@ -724,17 +746,31 @@ def screen_stocks(
             if not (pp < 15 and (phase == "C" or gf >= 0.3)):
                 score -= 10
 
-        # --- 季節フィルタ ---
-        if market_env.get("is_september"):  # 9月: 勝てるコンボのみ通す
-            # bot15+gf30+rsi_turn=75%, hvol4+gf30+bot15=59.5%
-            sept_pass = (
-                (pp < 15 and gf >= 0.3 and r.get("rsi_turning"))  # 75%コンボ
-                or (daily_vol >= 4 and gf >= 0.3 and pp < 15)     # hvol4+gf30+bot15
-            )
-            if not sept_pass:
-                score -= 100  # 実質除外
-        elif market_env.get("is_march"):  # 3月はgf30+bot15+RSI反転以外を減点
-            if not (gf >= 0.3 and pp < 15 and r.get("rsi_turning")):
+        # --- 月別戦略（網羅探索: 月×コンボの全組み合わせ検証済み）---
+        _month = market_env.get("month", 0)
+
+        if _month == 3:  # ゴールデンマンス。T1:97%, gf_crash:92%
+            score += 25  # 3月ボーナス（期末ドレッシングの底拾い）
+        elif _month == 12:  # 節税売りの底。gf_crash:96%, rsi_turn:94%
+            score += 20  # 12月ボーナス
+        elif _month == 4:  # panic:90%, gf30+bot15:86%
+            score += 10
+        elif _month in (9, 10):  # 9月base45%+panic77%のみ、10月42%+gf_crash64%のみ
+            # 9月: panicのみ通す
+            if _month == 9:
+                is_panic = r.get("down_days", 0) >= 3 and hvol_pct >= 40
+                sept_pass = (
+                    is_panic
+                    or (pp < 15 and gf >= 0.3 and r.get("rsi_turning"))
+                    or (daily_vol >= 4 and gf >= 0.3 and pp < 15)
+                )
+                if not sept_pass:
+                    score -= 100
+            else:  # 10月
+                if not r.get("gf_crash"):
+                    score -= 30
+        elif _month == 7:  # base41%。gf_crash:73%のみ
+            if not (r.get("gf_crash") or (gf >= 0.3 and pp < 15)):
                 score -= 15
 
         return score

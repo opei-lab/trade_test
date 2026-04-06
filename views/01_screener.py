@@ -406,21 +406,19 @@ if cached:
                     risk_adj -= 15
                     risk_parts.append(f"PER割高({sector_name})-15")
 
-            # 季節ペナルティ
+            # 月別調整（stealth_scoreで既に反映済み。UIでは表示のみ）
             mkt_env = r.get("market_env", {})
             if isinstance(mkt_env, dict):
-                if mkt_env.get("is_september"):  # 9月（勝てるフィルタのみ通過済み）
+                _m = mkt_env.get("month", 0)
+                if _m in (9, 10):
                     risk_adj -= 10
-                    risk_parts.append("9月厳選モード-10")
-                elif mkt_env.get("is_march"):  # 3月
-                    gf_val = r.get("gap_frequency", 0)
-                    pp_val = r.get("price_position", 50)
-                    rsi_t = r.get("rsi_turning", False)
-                    if gf_val >= 0.3 and pp_val < 15 and rsi_t:
-                        pass  # 3月でもgf30+bot15+RSI反転なら減点なし
-                    else:
-                        risk_adj -= 15
-                        risk_parts.append("3月期末-15")
+                    risk_parts.append(f"{_m}月厳選-10")
+                elif _m == 3:
+                    risk_adj += 5
+                    risk_parts.append("3月ボーナス+5")
+                elif _m == 12:
+                    risk_adj += 5
+                    risk_parts.append("12月ボーナス+5")
 
             est_wr = min(95, max(20, tier_wr + ir_lift + risk_adj))
 
