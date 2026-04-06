@@ -711,27 +711,24 @@ def screen_stocks(
         if mkt == "crash":
             r["tier"] = "CRASH"
             r["tier_desc"] = "暴落反発（88%）"
-        # === 90%+コンボ（全市場検証済み） ===
+        # === SS: 唯一の本物90%コンボ（2020年除外86%、直近3年96%）===
         elif hvol_pct >= 60 and ret20 <= -15 and down_days >= 3:
             r["tier"] = "SS"
-            r["tier_desc"] = "高ボラ+急落+連続下落（93%）"
-        elif hvol_pct >= 60 and ret5 <= -8 and vp_div >= 2:
-            r["tier"] = "SS"
-            r["tier_desc"] = "高ボラ+5日急落+売り枯れ（89%）"
-        elif ret20 <= -15 and hvol_pct >= 40 and down_days >= 5:
-            r["tier"] = "SS"
-            r["tier_desc"] = "20日急落+5日連続下落（91%）"
-        # === S+: 92% ===
+            r["tier_desc"] = "パニック底（86%、2020除外検証済）"
+        # === S+: 直近3年80% ===
         elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20 and rsi_turn and not market_env.get("is_september"):
             r["tier"] = "S+"
-            r["tier_desc"] = "急落+RSI反転（92%）"
-        # === 85%+コンボ ===
+            r["tier_desc"] = "急落+RSI反転（80%、直近3年）"
+        # === S: 70%前後（2020年除外で安定） ===
         elif hvol_pct >= 60 and ret20 <= -15:
             r["tier"] = "S"
-            r["tier_desc"] = "高ボラ+20日急落（86%）"
+            r["tier_desc"] = "高ボラ+20日急落（69%、2020除外）"
+        elif hvol_pct >= 60 and ret5 <= -8 and vp_div >= 2:
+            r["tier"] = "S"
+            r["tier_desc"] = "高ボラ+急落+売り枯れ（67%、2020除外）"
         elif ma20_dist <= -10 and hvol_pct >= 40 and down_days >= 3:
             r["tier"] = "S"
-            r["tier_desc"] = "MA乖離+ボラ+連続下落（86%）"
+            r["tier_desc"] = "MA乖離+ボラ+連続下落（70%）"
         elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20:
             r["tier"] = "S"
             r["tier_desc"] = "急落反発（70%）"
