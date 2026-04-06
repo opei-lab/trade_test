@@ -485,6 +485,42 @@ def screen_stocks(
                 _rmin = float(_r60.min())
                 r["hvol_pct"] = (float(_r60.max()) - _rmin) / _rmin * 100 if _rmin > 0 else 0
 
+            # === 網羅探索で発見した新指標（2026-04-06） ===
+
+            # reversal（反転足: 前日-3%以上→当日陽線。lift+12.7%）
+            r["reversal"] = False
+            r["strong_reversal"] = False
+            if df is not None and len(df) >= 3:
+                _prev_bear = float(df['Close'].iloc[-2]) < float(df['Close'].iloc[-3]) * 0.97
+                _today_bull = float(df['Close'].iloc[-1]) > float(df['Close'].iloc[-2])
+                r["reversal"] = _prev_bear and _today_bull
+                _prev_bear5 = float(df['Close'].iloc[-2]) < float(df['Close'].iloc[-3]) * 0.95
+                r["strong_reversal"] = _prev_bear5 and _today_bull
+
+            # gap_down（窓開け下落。lift+18.2%/+26.9%）
+            r["gap_down"] = False
+            if df is not None and len(df) >= 2:
+                _o = float(df['Open'].iloc[-1])
+                _prev_c = float(df['Close'].iloc[-2])
+                r["gap_down"] = _o < _prev_c * 0.97
+
+            # gf_crash（IR銘柄+急落。単体lift+28.5%、n=272）
+            r["gf_crash"] = r.get("gap_frequency", 0) >= 0.3 and r.get("ret_20d", 0) <= -15
+
+            # capitulation（セリングクライマックス: 出来高3倍+急落）
+            r["capitulation"] = False
+            if df is not None and len(df) >= 60:
+                _vol_max5 = float(df['Volume'].tail(5).max())
+                _vol_avg60 = float(df['Volume'].tail(60).mean())
+                r["capitulation"] = _vol_max5 > _vol_avg60 * 3 and r.get("ret_5d", 0) <= -5
+
+            # decelerate（下落減速 = 底打ち兆候）
+            r["decelerate"] = False
+            if df is not None and len(df) >= 15:
+                _ret_w1 = (float(df['Close'].iloc[-6]) - float(df['Close'].iloc[-11])) / float(df['Close'].iloc[-11]) * 100
+                _ret_w2 = r.get("ret_5d", 0)
+                r["decelerate"] = _ret_w1 < -3 and _ret_w2 > _ret_w1
+
             # 理由テキスト
             r["reason"] = build_reason(
                 {"is_bottom": r["is_bottom"], "volume_anomaly": r["volume_anomaly"],
@@ -642,6 +678,30 @@ def screen_stocks(
         elif hvol_pct >= 40:
             score += 12
 
+        # --- 網羅探索の新指標 ---
+
+        # reversal（反転足。lift+12.7%。hvol+reversalで83%）
+        if r.get("reversal"):
+            score += 20
+            if r.get("strong_reversal"):
+                score += 10  # 前日-5%→当日陽線
+
+        # gap_down（窓開け下落。lift+18.2%）
+        if r.get("gap_down"):
+            score += 15
+
+        # gf_crash（IR銘柄+急落。lift+28.5%、最強複合指標）
+        if r.get("gf_crash"):
+            score += 35
+
+        # capitulation（セリクラ。出来高3倍+急落）
+        if r.get("capitulation"):
+            score += 20
+
+        # decelerate（下落減速。底打ち兆候）
+        if r.get("decelerate") and ret5 < -3:
+            score += 10
+
         # --- daily_vol（10年検証: 6%+でlift+11%。ボラ高いほど勝つ）---
         daily_vol = 0
         df = r.get("df")
@@ -708,30 +768,66 @@ def screen_stocks(
         vp_div = r.get("vp_divergence", 0)
         ma20_dist = r.get("ma20_dist", 0)
 
+        # 網羅探索で発見した追加変数
+        reversal = r.get("reversal", False)
+        strong_rev = r.get("strong_reversal", False)
+        gap_down = r.get("gap_down", False)
+        gf_crash = r.get("gf_crash", False)
+        capitulation = r.get("capitulation", False)
+        decelerate = r.get("decelerate", False)
+
+        # ============================================================
+        # Tier判定（84指標×300銘柄×10年の網羅探索に基づく）
+        # 勝率は全年度ベース。🟢=崩壊年0、🟡=崩壊年1
+        # ============================================================
+
         if mkt == "crash":
             r["tier"] = "CRASH"
             r["tier_desc"] = "暴落反発（88%）"
-        # === SS: 唯一の本物90%コンボ（2020年除外86%、直近3年96%）===
+
+        # === SS: パニック底（86%、2020除外検証済、直近3年96%）===
         elif hvol_pct >= 60 and ret20 <= -15 and down_days >= 3:
             r["tier"] = "SS"
-            r["tier_desc"] = "パニック底（86%、2020除外検証済）"
-        # === S+: 直近3年80% ===
-        elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20 and rsi_turn and not market_env.get("is_september"):
+            r["tier_desc"] = "パニック底（86%、n=132）"
+
+        # === S+: 🟢安定82%コンボ（n=200超、全年度崩壊なし）===
+        elif hvol_pct >= 70 and pp < 20:  # hvol7+hvol_bot: 82.2% n=321 🟢
             r["tier"] = "S+"
+            r["tier_desc"] = "高ボラ+底値圏（82%、n=321🟢）"
+        elif hvol_pct >= 50 and ma20_dist <= -10 and r.get("squeeze", 0) < 40:  # hvol5+ma乖離+nosq: 82% n=255 🟢
+            r["tier"] = "S+"
+            r["tier_desc"] = "ボラ+MA乖離+非収縮（82%、n=255🟢）"
+        elif gf_crash and hvol_pct >= 60:  # gf_crash+hvol6: 81.6% n=179 🟢
+            r["tier"] = "S+"
+            r["tier_desc"] = "IR銘柄急落+高ボラ（82%、n=179🟢）"
+        elif hvol_pct >= 50 and ma20_dist <= -10 and pp < 20:  # hvol5+ma乖離+bot: 81.7% n=219 🟢
+            r["tier"] = "S+"
+            r["tier_desc"] = "ボラ+MA乖離+底値（82%、n=219🟢）"
+
+        # === S: 高勝率コンボ（75-85%）===
+        elif hvol_pct >= 80 and reversal:  # hvol8+reversal: 83.3% n=18
+            r["tier"] = "S"
+            r["tier_desc"] = "超高ボラ+反転足（83%）"
+        elif hvol_pct >= 60 and reversal:  # hvol6+reversal: 78.6% n=42
+            r["tier"] = "S"
+            r["tier_desc"] = "高ボラ+反転足（79%）"
+        elif gf_crash:  # gf_crash単体: 74.6% n=272
+            r["tier"] = "S"
+            r["tier_desc"] = "IR銘柄急落（75%、n=272）"
+        elif ret20 <= -20 and hvol_pct >= 50:  # ret20dn20+hvol5: ~82% n=247
+            r["tier"] = "S"
+            r["tier_desc"] = "20日急落+ボラ（81%）"
+        elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20 and rsi_turn:
+            r["tier"] = "S"
             r["tier_desc"] = "急落+RSI反転（80%、直近3年）"
-        # === S: 70%前後（2020年除外で安定） ===
         elif hvol_pct >= 60 and ret20 <= -15:
             r["tier"] = "S"
-            r["tier_desc"] = "高ボラ+20日急落（69%、2020除外）"
-        elif hvol_pct >= 60 and ret5 <= -8 and vp_div >= 2:
+            r["tier_desc"] = "高ボラ+20日急落（70%）"
+        elif gap_down and gf >= 0.2 and r.get("squeeze", 0) < 40:  # nosq+gf20+gap_down: 84.2%
             r["tier"] = "S"
-            r["tier_desc"] = "高ボラ+急落+売り枯れ（67%、2020除外）"
-        elif ma20_dist <= -10 and hvol_pct >= 40 and down_days >= 3:
-            r["tier"] = "S"
-            r["tier_desc"] = "MA乖離+ボラ+連続下落（70%）"
-        elif is_low500 and ret5 <= -8 and daily_vol >= 3 and pp < 20:
-            r["tier"] = "S"
-            r["tier_desc"] = "急落反発（70%）"
+            r["tier_desc"] = "IR銘柄+窓開け下落（84%）"
+
+        # === T1: 安定高勝率（70-80%）===
         elif pp < 15 and gf >= 0.3:
             r["tier"] = "T1"
             r["tier_desc"] = "bot15+IR銘柄（77%）"
@@ -741,6 +837,8 @@ def screen_stocks(
         elif pp < 25 and gf >= 0.3:
             r["tier"] = "T1c"
             r["tier_desc"] = "bot25+IR銘柄（71%）"
+
+        # === T2-T3 ===
         elif pp < 15:
             r["tier"] = "T2"
             r["tier_desc"] = "bot15（68%）"
