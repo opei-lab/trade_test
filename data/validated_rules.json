@@ -1,0 +1,108 @@
+{
+  "version": 2,
+  "generated_at": "2026-04-06",
+  "method": "exhaustive_search_84indicators_300stocks_10years",
+  "win_definition": {"mfe_pct": 15.0, "hold_days": 60},
+  "total_samples": 11735,
+  "baseline_win_rate": 46.1,
+  "golden_rules": [
+    {
+      "name": "SS: パニック底",
+      "conditions": ["hvol_pct >= 60", "ret_20d <= -15", "down_days >= 3"],
+      "win_rate": 86.3,
+      "win_rate_2020_excluded": 86.3,
+      "win_rate_recent_3y": 96.3,
+      "n": 132,
+      "tier": "SS"
+    },
+    {
+      "name": "S+: 高ボラ+底値圏",
+      "conditions": ["hvol_pct >= 70", "price_position <= 20"],
+      "win_rate": 82.2,
+      "n": 321,
+      "stability": "green",
+      "tier": "S+"
+    },
+    {
+      "name": "S+: ボラ+MA乖離+非収縮",
+      "conditions": ["hvol_pct >= 50", "ma20_dist <= -10", "squeeze < 40"],
+      "win_rate": 82.0,
+      "n": 255,
+      "stability": "green",
+      "tier": "S+"
+    },
+    {
+      "name": "S+: IR銘柄急落+高ボラ",
+      "conditions": ["gf_crash == true", "hvol_pct >= 60"],
+      "win_rate": 81.6,
+      "n": 179,
+      "stability": "green",
+      "tier": "S+"
+    },
+    {
+      "name": "S+: ボラ+MA乖離+底値",
+      "conditions": ["hvol_pct >= 50", "ma20_dist <= -10", "price_position <= 20"],
+      "win_rate": 81.7,
+      "n": 219,
+      "stability": "green",
+      "tier": "S+"
+    },
+    {
+      "name": "S: 超高ボラ+反転足",
+      "conditions": ["hvol_pct >= 80", "reversal == true"],
+      "win_rate": 83.3,
+      "n": 18,
+      "tier": "S"
+    },
+    {
+      "name": "S: 高ボラ+反転足",
+      "conditions": ["hvol_pct >= 60", "reversal == true"],
+      "win_rate": 78.6,
+      "n": 42,
+      "tier": "S"
+    },
+    {
+      "name": "S: IR銘柄急落",
+      "conditions": ["gf_crash == true"],
+      "win_rate": 74.6,
+      "n": 272,
+      "tier": "S"
+    },
+    {
+      "name": "S: IR銘柄+窓開け下落",
+      "conditions": ["gap_down == true", "gap_frequency >= 0.2", "squeeze < 40"],
+      "win_rate": 84.2,
+      "n": 19,
+      "tier": "S"
+    },
+    {
+      "name": "T1: nosq+bot20+hvol4",
+      "conditions": ["squeeze < 40", "price_position <= 20", "hvol_pct >= 40"],
+      "win_rate": 77.4,
+      "n": 575,
+      "tier": "T1"
+    }
+  ],
+  "hard_filters": [
+    {"signal": "phase", "op": "!=", "value": "E"},
+    {"signal": "ceiling_score", "op": "<", "value": 70}
+  ],
+  "sector_exclusions": [
+    {"sector": "食料品", "base_win_rate": 23.2},
+    {"sector": "銀行業", "base_win_rate": 30.3},
+    {"sector": "卸売業", "base_win_rate": 32.4}
+  ],
+  "sector_bonuses": [
+    {"sector": "精密機器", "base_win_rate": 74.5},
+    {"sector": "金属製品", "base_win_rate": 81.1},
+    {"sector": "建設業", "base_win_rate": 56.8},
+    {"sector": "機械", "base_win_rate": 59.1}
+  ],
+  "monthly_strategy": {
+    "3": {"label": "ゴールデン", "bonus": 25, "best_combo": "T1:97%"},
+    "4": {"label": "良月", "bonus": 10},
+    "9": {"label": "厳選", "only": "panic(77%)"},
+    "10": {"label": "厳選", "only": "gf_crash(64%)"},
+    "12": {"label": "節税売り底", "bonus": 20, "best_combo": "gf_crash:96%"}
+  }
+}

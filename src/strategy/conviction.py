@@ -155,6 +155,65 @@ CONVICTION_CHECKS = [
         "description": "時価総額300億未満（少ない資金で大きく動く）",
         "check": lambda ctx: 0 < ctx.get("market_cap", 0) < 30e9,
     },
+
+    # === 網羅探索で発見した新条件（2026-04-06）===
+    {
+        "id": "reversal_candle",
+        "name": "反転足",
+        "weight": 4,
+        "category": "タイミング",
+        "description": "前日大陰線→当日陽線。lift+12.7%。hvol+reversalで83%",
+        "check": lambda ctx: ctx.get("reversal", False),
+    },
+    {
+        "id": "gf_crash",
+        "name": "IR銘柄急落",
+        "weight": 5,
+        "category": "需給",
+        "description": "IR銘柄(gf30)+20日急落。単体lift+28.5%。市場のoverreaction",
+        "check": lambda ctx: ctx.get("gf_crash", False),
+    },
+    {
+        "id": "high_hvol",
+        "name": "高ヒストリカルレンジ",
+        "weight": 5,
+        "category": "需給",
+        "description": "60日レンジ60%+。最強の単独指標(lift+24.5%)。動く銘柄が勝つ",
+        "check": lambda ctx: ctx.get("hvol_pct", 0) >= 60,
+    },
+    {
+        "id": "capitulation_signal",
+        "name": "セリクラ",
+        "weight": 5,
+        "category": "タイミング",
+        "description": "出来高3倍+急落。パニック売りの極限=底打ち",
+        "check": lambda ctx: ctx.get("capitulation", False),
+    },
+    {
+        "id": "deep_crash",
+        "name": "20日急落",
+        "weight": 4,
+        "category": "タイミング",
+        "description": "20日で-15%以上の急落。反発確率が高い(lift+20.5%)",
+        "check": lambda ctx: ctx.get("ret_20d", 0) <= -15,
+    },
+    {
+        "id": "overseas_positive",
+        "name": "海外先行情報",
+        "weight": 5,
+        "category": "IR",
+        "description": "FDA/SEC/ClinicalTrialsで海外ポジティブ情報を先行検出",
+        "check": lambda ctx: len(ctx.get("overseas_high", [])) > 0
+                             and any(a.get("impact") == "high_positive" for a in ctx.get("overseas_high", [])),
+    },
+    {
+        "id": "good_sector",
+        "name": "好セクター",
+        "weight": 3,
+        "category": "特性",
+        "description": "精密機器(75%)/金属製品(81%)/建設(57%)/機械(59%)。セクター自体が強い",
+        "check": lambda ctx: ctx.get("sector", "") in ("精密機器", "金属製品", "建設業", "機械"),
+    },
 ]
 
 # 最大重みスコア
@@ -227,6 +286,14 @@ def calc_conviction(result: dict) -> dict:
         "daily_vol": result.get("daily_vol", 0),
         "rsi_turning": result.get("rsi_turning", False),
         "ret_5d": result.get("ret_5d", 0),
+        # 網羅探索で追加
+        "reversal": result.get("reversal", False),
+        "gf_crash": result.get("gf_crash", False),
+        "hvol_pct": result.get("hvol_pct", 0),
+        "capitulation": result.get("capitulation", False),
+        "ret_20d": result.get("ret_20d", 0),
+        "overseas_high": result.get("overseas_high", []),
+        "sector": result.get("sector", ""),
     }
 
     passed = []
